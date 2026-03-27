@@ -4,24 +4,29 @@ from typing import List
 import os
 
 class Settings(BaseSettings):
-    # LLM
+    # LLM - DeepSeek (主要模型)
+    deepseek_api_key: str = ""
+    deepseek_base_url: str = "https://api.deepseek.com"
+    deepseek_model: str = "deepseek-chat"
+
+    # 传统 OpenAI（兼容性备用）
     openai_api_key: str = ""
     openai_model: str = "gpt-4o-mini"
     claude_api_key: str = ""
 
-    # Database
+    # 数据库
     database_url: str = "data/memory.db"
 
-    # Application
+    # 应用配置
     app_host: str = "0.0.0.0"
     app_port: int = 8000
     log_level: str = "INFO"
 
-    # Model chain: comma-separated, first available is used
+    # 模型链：逗号分隔，使用第一个可用的模型
     model_chain: str = "openai,claude,local"
     primary_model: str = "openai"
 
-    # Timeouts
+    # 超时设置
     tool_timeout: int = 10
     agent_timeout: int = 30
     request_timeout: int = 90

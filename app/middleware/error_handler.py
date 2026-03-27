@@ -1,5 +1,5 @@
 # app/middleware/error_handler.py
-"""Error Handler Middleware - graceful degradation with structured error responses."""
+"""错误处理中间件 - 优雅降级并提供结构化错误响应。"""
 from fastapi import Request, status
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware

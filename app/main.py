@@ -1,5 +1,5 @@
 # app/main.py
-"""FastAPI Application Entry Point."""
+"""FastAPI 应用入口点。"""
 import structlog
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
@@ -10,7 +10,7 @@ from app.middleware.tracing import TracingMiddleware
 from app.middleware.error_handler import ErrorHandlerMiddleware
 from app.api import chat, plan, preference, monitor
 
-# Configure structured logging
+# 配置结构化日志
 structlog.configure(
     processors=[
         structlog.contextvars.merge_contextvars,
@@ -22,14 +22,14 @@ structlog.configure(
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: initialize database
+    # 启动：初始化数据库
     settings = get_settings()
     import os
     os.makedirs(os.path.dirname(settings.database_url), exist_ok=True)
     mem = get_long_term_memory(settings.database_url)
     await mem.initialize()
     yield
-    # Shutdown
+    # 关闭
     await mem.close()
 
 def create_app() -> FastAPI:
@@ -41,7 +41,7 @@ def create_app() -> FastAPI:
         lifespan=lifespan
     )
 
-    # Middleware
+    # 中间件
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
@@ -52,7 +52,7 @@ def create_app() -> FastAPI:
     app.add_middleware(TracingMiddleware)
     app.add_middleware(ErrorHandlerMiddleware)
 
-    # Routes
+    # 路由
     app.include_router(chat.router)
     app.include_router(plan.router)
     app.include_router(preference.router)

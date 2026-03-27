@@ -1,5 +1,5 @@
 # app/middleware/tracing.py
-"""Tracing Middleware - adds trace_id to every request for log correlation."""
+"""追踪中间件 - 为每个请求添加 trace_id 用于日志关联。"""
 import uuid
 import structlog
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -19,7 +19,7 @@ class TracingMiddleware(BaseHTTPMiddleware):
         trace_id = request.headers.get("X-Trace-ID", str(uuid.uuid4()))
         _trace_id_var.set(trace_id)
 
-        # Bind trace_id to structlog
+        # 绑定 trace_id 到 structlog
         structlog.contextvars.clear_contextvars()
         structlog.contextvars.bind_contextvars(trace_id=trace_id)
 
