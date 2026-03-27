@@ -4,6 +4,7 @@
 This is the main entry point for the Multi-Agent system.
 Orchestrates: Preference Agent → parallel (Attractions + Budget) → Route → parallel (Food + Hotel) → Budget check.
 """
+import asyncio
 import re
 import uuid
 import time
@@ -110,10 +111,10 @@ class PlanningAgent:
         preferences = await self.pref_agent.get_preference(user_id)
 
         # Step 3: Parallel - Attractions + Budget
-        attr_result = await trace("Attractions Agent",
-            self.attr_agent.search(city, days, season, preferences))
-        budget_result = await trace("Budget Agent",
-            self.budget_agent.calculate(days, preferences.get("spending_style", "适中")))
+        attr_result, budget_result = await asyncio.gather(
+            trace("Attractions Agent", self.attr_agent.search(city, days, season, preferences)),
+            trace("Budget Agent", self.budget_agent.calculate(days, preferences.get("spending_style", "适中")))
+        )
 
         attractions = attr_result.get("attractions", [])
 
@@ -129,10 +130,10 @@ class PlanningAgent:
             }))
 
         # Step 5: Parallel - Food + Hotel
-        food_result = await trace("Food Agent",
-            self.food_agent.recommend(city, "", budget / days / 3))
-        hotel_result = await trace("Hotel Agent",
-            self.hotel_agent.search(city, budget / days, ""))
+        food_result, hotel_result = await asyncio.gather(
+            trace("Food Agent", self.food_agent.recommend(city, "", budget / days / 3)),
+            trace("Hotel Agent", self.hotel_agent.search(city, budget / days, ""))
+        )
 
         # Step 6: Budget validation
         hotel_info = hotel_result.get("hotels", [{}])[0] if hotel_result.get("hotels") else {}
