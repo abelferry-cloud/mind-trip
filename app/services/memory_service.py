@@ -1,8 +1,8 @@
 # app/services/memory_service.py
-"""Memory Service - unified access to long-term memory with write permission control.
+"""记忆服务 - 统一访问长期记忆，具有写入权限控制。
 
-Per design Section 3.3: Only Preference Agent can write to long-term memory.
-Other agents get read-only access. This is enforced by role check, not technically.
+根据设计文档第 3.3 节：只有偏好 Agent 可以写入长期记忆。
+其他 Agent 只能读取。这通过角色检查强制执行，而非技术限制。
 """
 from typing import Optional, Dict, Any, List
 from app.memory.long_term import get_long_term_memory, LongTermMemory
@@ -10,7 +10,7 @@ from app.memory.long_term import get_long_term_memory, LongTermMemory
 _WRITE_ENABLED_AGENTS = {"PreferenceAgent"}
 
 class MemoryService:
-    """Service layer wrapping LongTermMemory with permission control."""
+    """带有权限控制的 MemoryService 服务层封装。"""
 
     def __init__(self):
         self._mem: Optional[LongTermMemory] = None
@@ -21,14 +21,14 @@ class MemoryService:
         return self._mem
 
     def can_write(self, agent_name: str) -> bool:
-        """Check if an agent has write permission to long-term memory."""
+        """检查 Agent 是否有长期记忆的写入权限。"""
         return agent_name in _WRITE_ENABLED_AGENTS
 
     def can_read(self, agent_name: str) -> bool:
-        """All agents can read long-term memory."""
+        """所有 Agent 都可以读取长期记忆。"""
         return True
 
-    # Preference write methods (only PreferenceAgent should call these)
+    # 偏好写入方法（只应由 PreferenceAgent 调用）
     async def update_preference(self, user_id: str, category: str, value: Any):
         mem = self._get_mem()
         await mem.update_preference(user_id, category, value)
