@@ -1,2 +1,2 @@
 # app/api/__init__.py
-"""API package."""
+"""API 包。"""

@@ -1,5 +1,5 @@
 # app/api/monitor.py
-"""Monitor API - health checks and metrics."""
+"""监控 API - 健康检查和指标。"""
 from fastapi import APIRouter
 from fastapi.responses import Response
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
@@ -11,7 +11,7 @@ router = APIRouter(prefix="/api", tags=["monitor"])
 
 @router.get("/health")
 async def health():
-    """Health check endpoint."""
+    """健康检查端点。"""
     from app.services.model_router import get_model_router
     from app.config import get_settings
     settings = get_settings()

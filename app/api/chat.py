@@ -1,5 +1,5 @@
 # app/api/chat.py
-"""Chat API - main conversation endpoint."""
+"""聊天 API - 主要对话端点。"""
 import asyncio
 from fastapi import APIRouter, Request, BackgroundTasks
 from fastapi.responses import JSONResponse
@@ -27,10 +27,10 @@ _agent = PlanningAgent()
 
 @router.post("/chat", response_model=ChatResponse)
 async def chat(req: ChatRequest, request: Request, background_tasks: BackgroundTasks):
-    """Main chat endpoint - triggers full multi-agent planning.
+    """主要聊天端点 - 触发完整的多 Agent 规划。
 
-    Per Design Section 6.2: complete planning request has 90s timeout.
-    Uses asyncio.wait_for to enforce timeout.
+    根据设计文档第 6.2 节：完整规划请求有 90 秒超时。
+    使用 asyncio.wait_for 强制执行超时。
     """
     settings = get_settings()
 
@@ -51,7 +51,7 @@ async def chat(req: ChatRequest, request: Request, background_tasks: BackgroundT
             }
         )
 
-    # Save plan in background
+    # 后台保存方案
     save_plan(result["plan_id"], result)
 
     return ChatResponse(

@@ -1,5 +1,5 @@
 # app/api/preference.py
-"""Preference API - manage user preferences."""
+"""偏好 API - 管理用户偏好。"""
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Any

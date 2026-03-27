@@ -1,12 +1,12 @@
 # app/api/plan.py
-"""Plan API - retrieve saved plans."""
+"""方案 API - 获取已保存的方案。"""
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional, List
 
 router = APIRouter(prefix="/api", tags=["plan"])
 
-# In-memory plan store (for demo; replace with Redis/DB in production)
+# 内存方案存储（演示用；生产环境请替换为 Redis/数据库）
 _plan_store: dict = {}
 
 class PlanResponse(BaseModel):
@@ -29,5 +29,5 @@ async def get_plan(plan_id: str):
     return plan
 
 def save_plan(plan_id: str, plan_data: dict):
-    """Called by chat endpoint after plan is generated."""
+    """由聊天端点在生成方案后调用。"""
     _plan_store[plan_id] = plan_data
