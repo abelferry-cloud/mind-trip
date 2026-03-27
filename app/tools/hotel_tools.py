@@ -1,6 +1,6 @@
 # app/tools/hotel_tools.py
-"""Hotel Tools - search and recommend hotels.
-Mock dataset for demonstration.
+"""酒店工具 - 搜索和推荐酒店。
+模拟数据集用于演示。
 """
 from typing import List, Dict, Any
 
@@ -22,15 +22,15 @@ _MOCK_HOTELS = {
 }
 
 async def search_hotels(city: str, budget: float = 500.0, location_preference: str = "") -> List[Dict[str, Any]]:
-    """Search hotels in a city within budget.
+    """搜索城市的酒店，在预算范围内。
 
     Args:
-        city: City name
-        budget: Max price per night in CNY
-        location_preference: Preferred district (empty = any)
+        city: 城市名
+        budget: 每晚最高价格（CNY）
+        location_preference: 偏好区域（空=任意）
 
     Returns:
-        List of hotel dicts
+        酒店列表
     """
     hotels = _MOCK_HOTELS.get(city, [])
     if budget:

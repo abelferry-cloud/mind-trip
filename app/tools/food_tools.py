@@ -1,6 +1,6 @@
 # app/tools/food_tools.py
-"""Food Tools - recommend local restaurants.
-Mock dataset for demonstration.
+"""美食工具 - 推荐本地餐厅。
+模拟数据集用于演示。
 """
 from typing import List, Dict, Any
 
@@ -24,19 +24,19 @@ _MOCK_RESTAURANTS = {
 }
 
 async def recommend_restaurants(city: str, style: str = "", budget_per_meal: float = 100.0) -> List[Dict[str, Any]]:
-    """Recommend restaurants in a city.
+    """推荐城市的餐厅。
 
     Args:
-        city: City name
-        style: Cuisine preference (e.g., "浙菜", empty = all)
-        budget_per_meal: Budget per meal in CNY
+        city: 城市名
+        style: 菜系偏好（如"浙菜", 空=全部）
+        budget_per_meal: 每餐预算（CNY）
 
     Returns:
-        List of restaurant dicts
+        餐厅列表
     """
     restaurants = _MOCK_RESTAURANTS.get(city, [])
     if style:
         restaurants = [r for r in restaurants if style in r["cuisine"] or not style]
-    # Filter by budget
+    # 按预算筛选
     restaurants = [r for r in restaurants if r["avg_budget"] <= budget_per_meal * 1.5]
     return restaurants

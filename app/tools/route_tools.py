@@ -1,11 +1,11 @@
 # app/tools/route_tools.py
-"""Route Tools - plan daily routes and estimate travel time.
-Mock implementation with deterministic output for demonstration.
+"""路线工具 - 规划每日路线和估算旅行时间。
+带有确定性输出的模拟实现用于演示。
 """
 from typing import List, Dict, Any, Optional
 import datetime
 
-# Mock travel time estimates (from_location, to_location, transport) → (duration_min, distance_km)
+# 模拟旅行时间估算（from_location, to_location, transport）→ (duration_min, distance_km)
 _MOCK_TRAVEL = {
     ("酒店", "西湖", "地铁"): (25, 8),
     ("酒店", "灵隐寺", "地铁"): (35, 12),
@@ -26,10 +26,10 @@ async def plan_daily_route(
     attractions: List[dict],
     constraints: dict
 ) -> List[Dict[str, Any]]:
-    """Plan daily route given attractions and constraints.
+    """根据景点和约束条件规划每日路线。
 
     Args:
-        attractions: List of attraction dicts from search_attractions
+        attractions: 来自 search_attractions 的景点列表
         constraints: {
             "days": int,
             "budget_limit": float,
@@ -40,28 +40,28 @@ async def plan_daily_route(
         }
 
     Returns:
-        List of daily plans with day number, date, attractions, transport, meals
-        Per Design Section 5.4: each daily_route includes date field
+        每日计划列表，包含天数、日期、景点、交通、餐食
+        根据设计文档第 5.4 节：每个 daily_route 包含 date 字段
     """
     days = constraints["days"]
     replan = constraints.get("replan_context")
 
-    # Filter out high-intensity attractions if mobility_limitations present
+    # 如果存在行动限制，过滤掉高强度景点
     filtered = attractions
     if constraints.get("mobility_limitations"):
         filtered = [a for a in attractions if a.get("intensity", "medium") != "high"]
         if len(filtered) == 0:
-            filtered = attractions  # fallback if all are filtered out
+            filtered = attractions  # 如果全部被过滤则回退
 
-    # Adjust strategy based on replan attempt
+    # 根据重新规划尝试次数调整策略
     if replan:
         attempt = replan.get("attempt", 1)
         if attempt == 1:
-            pass  # keep most attractions, just budget-trim
+            pass  # 保留最多景点，仅预算削减
         elif attempt == 2:
             filtered = filtered[:days] if len(filtered) >= days else filtered
 
-    # Assign start date (today + 1 as mock departure date)
+    # 分配开始日期（今天 +1 作为模拟出发日期）
     start_date = datetime.date.today() + datetime.timedelta(days=1)
 
     daily_plans = []
@@ -100,6 +100,6 @@ async def plan_daily_route(
     return daily_plans
 
 async def estimate_travel_time(from_location: str, to_location: str, transport: str) -> Dict[str, Any]:
-    """Estimate travel time between two locations."""
+    """估算两个地点之间的旅行时间。"""
     dur, dist = _get_travel_time(from_location, to_location, transport)
     return {"duration_minutes": dur, "distance_km": dist}

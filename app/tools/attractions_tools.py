@@ -1,10 +1,10 @@
 # app/tools/attractions_tools.py
-"""Attractions Tools - search and detail for tourist attractions.
-Uses a hardcoded mock dataset for demonstration purposes.
+"""景点工具 - 搜索和获取旅游景点详情。
+使用硬编码的模拟数据集用于演示目的。
 """
 from typing import List, Dict, Any
 
-# Mock dataset
+# 模拟数据集
 _MOCK_ATTRACTIONS = {
     "attr_hz_001": {
         "id": "attr_hz_001", "name": "西湖", "city": "杭州", "score": 4.8,
@@ -39,7 +39,7 @@ _MOCK_ATTRACTIONS = {
 }
 
 def _match_city(city: str) -> List[Dict[str, Any]]:
-    """Return attractions matching city (case-insensitive prefix match)."""
+    """返回匹配城市的景点（不区分大小写的前缀匹配）。"""
     city_lower = city.lower()
     return [
         {k: v for k, v in attr.items() if k != "open_hours" and k != "ticket_price" and k != "booking_difficulty"}
@@ -48,14 +48,14 @@ def _match_city(city: str) -> List[Dict[str, Any]]:
     ]
 
 async def search_attractions(city: str, days: int, season: str) -> List[Dict[str, Any]]:
-    """Search attractions for a city.
+    """搜索城市的景点。
 
-    Returns list of attractions with: id, name, score, best_season, price_range, intensity, tips.
+    返回包含以下字段的景点列表：id, name, score, best_season, price_range, intensity, tips。
     """
     return _match_city(city)
 
 async def get_attraction_detail(attraction_id: str) -> Dict[str, Any]:
-    """Get detailed info for a specific attraction."""
+    """获取特定景点的详细信息。"""
     attr = _MOCK_ATTRACTIONS.get(attraction_id, {})
     if not attr:
         return {"error": "Attraction not found"}
@@ -68,9 +68,9 @@ async def get_attraction_detail(attraction_id: str) -> Dict[str, Any]:
     }
 
 async def check_availability(attraction_id: str, date: str) -> Dict[str, Any]:
-    """Check availability for a specific attraction on a date.
+    """检查特定景点在特定日期的可用性。
 
-    Note: This returns mock data for demonstration. Real implementation would call external API.
+    注意：这返回模拟数据用于演示。实际实现会调用外部 API。
     """
     attr = _MOCK_ATTRACTIONS.get(attraction_id)
     if not attr:

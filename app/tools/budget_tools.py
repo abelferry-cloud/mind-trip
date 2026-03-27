@@ -1,9 +1,9 @@
 # app/tools/budget_tools.py
-"""Budget Tools - calculate budget allocation and validate against plan.
+"""预算工具 - 计算预算分配并与方案对比验证。
 """
 from typing import Dict, Any
 
-# Budget style multipliers (relative to base mid-tier)
+# 预算风格乘数（相对于基准中档）
 _BUDGET_STYLES = {
     "节省": {"multiplier": 0.6, "attractions_pct": 0.10, "food_pct": 0.25, "hotel_pct": 0.35, "transport_pct": 0.15, "reserve_pct": 0.15},
     "适中": {"multiplier": 1.0, "attractions_pct": 0.15, "food_pct": 0.25, "hotel_pct": 0.30, "transport_pct": 0.10, "reserve_pct": 0.20},
@@ -11,17 +11,17 @@ _BUDGET_STYLES = {
 }
 
 async def calculate_budget(duration: int, style: str = "适中") -> Dict[str, Any]:
-    """Calculate budget breakdown for a trip.
+    """计算旅行预算细分。
 
     Args:
-        duration: Number of days
+        duration: 天数
         style: "节省" | "适中" | "奢侈"
 
     Returns:
         {"total_budget": float, "attractions_budget": float, "food_budget": float,
          "hotel_budget": float, "transport_budget": float, "reserve_budget": float}
     """
-    base = 1500 * duration  # base mid-tier: 1500 CNY per day
+    base = 1500 * duration  # 基准中档：每天 1500 CNY
     style_cfg = _BUDGET_STYLES.get(style, _BUDGET_STYLES["适中"])
     total = int(base * style_cfg["multiplier"])
 
@@ -35,12 +35,12 @@ async def calculate_budget(duration: int, style: str = "适中") -> Dict[str, An
     }
 
 async def check_budget_vs_plan(budget: float, plan: dict) -> Dict[str, Any]:
-    """Check if a plan exceeds the budget.
+    """检查方案是否超出预算。
 
-    plan: see design doc Section 4.3
+    plan: 见设计文档第 4.3 节
     Returns: {"within_budget": bool, "remaining": float, "alerts": List[str]}
     """
-    # Sum up actual costs from plan
+    # 累加方案中的实际花费
     daily_costs = 0
     for route in plan.get("daily_routes", []):
         for attr in route.get("attractions", []):
