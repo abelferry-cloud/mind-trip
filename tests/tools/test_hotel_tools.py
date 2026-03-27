@@ -8,4 +8,4 @@ async def test_search_hotels_returns_list():
     assert isinstance(results, list)
     assert len(results) > 0
     assert "name" in results[0]
-    assert "price" in results[0]
+    assert "price_per_night" in results[0]
