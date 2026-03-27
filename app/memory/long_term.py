@@ -104,16 +104,14 @@ def get_long_term_memory(db_path: Optional[str] = None) -> LongTermMemory:
     if db_path is None:
         db_path = get_settings().database_url
     if db_path == ":memory:":
-        # For in-memory database, use a temp file that persists during the session
-        # This allows multiple connections to share the same database
+        # 对于内存数据库，使用会话期间持久的临时文件
+        # 这允许多个连接共享同一个数据库
         if _mem_db_path is None:
             _mem_db_path = os.path.join(tempfile.gettempdir(), "smartjournal_mem.db")
-            # Remove old temp file if exists
+            # 如果存在则删除旧的临时文件
             if os.path.exists(_mem_db_path):
                 os.remove(_mem_db_path)
         db_path = _mem_db_path
     if _mem_instance is None or _mem_instance.db_path != db_path:
         _mem_instance = LongTermMemory(db_path)
-        import asyncio
-        asyncio.get_event_loop().run_until_complete(_mem_instance.initialize())
     return _mem_instance

@@ -1,7 +1,7 @@
 from typing import Optional, List
 
 class SimpleMessage:
-    """Simple message class to mimic LangChain message interface."""
+    """简单的消息类，用于模仿 LangChain 消息接口。"""
     def __init__(self, content: str, type: str):
         self.content = content
         self.type = type
