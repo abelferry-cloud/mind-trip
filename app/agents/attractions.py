@@ -1,20 +1,20 @@
 # app/agents/attractions.py
-"""Attractions Agent - search and filter attractions based on user preferences."""
+"""景点 Agent - 根据用户偏好搜索和筛选景点。"""
 from typing import Dict, Any, List
 from app.tools import attractions_tools as at
 
 class AttractionsAgent:
-    """Specialist agent for attractions search and filtering.
+    """景点搜索和筛选专家 Agent。
 
-    Reads preferences from Preference Agent to filter out inappropriate attractions
-    (e.g., high-intensity for heart disease patients).
+    从偏好 Agent 读取偏好，过滤不合适的景点
+    （例如：心脏病患者不适合高强度活动）。
     """
 
     async def search(self, city: str, days: int, season: str, preferences: Dict[str, Any]) -> Dict[str, Any]:
-        """Search attractions and filter based on user preferences."""
+        """搜索景点并根据用户偏好筛选。"""
         attractions = await at.search_attractions(city, days, season)
 
-        # Filter based on health preferences
+        # 根据健康偏好筛选
         health_prefs = preferences.get("health", [])
         mobility_limitations = []
         if any(h in health_prefs for h in ["心脏病", "高血压", "哮喘"]):

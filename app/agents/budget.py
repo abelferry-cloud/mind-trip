@@ -1,10 +1,10 @@
 # app/agents/budget.py
-"""Budget Agent - calculate and validate budgets."""
+"""预算 Agent - 计算和验证预算。"""
 from typing import Dict, Any
 from app.tools import budget_tools as bt
 
 class BudgetAgent:
-    """Specialist agent for budget calculation and validation."""
+    """预算计算和验证专家 Agent。"""
 
     async def calculate(self, duration: int, style: str) -> Dict[str, Any]:
         return await bt.calculate_budget(duration, style)
