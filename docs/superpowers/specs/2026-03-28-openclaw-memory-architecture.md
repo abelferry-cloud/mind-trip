@@ -283,6 +283,34 @@ class MemorySearchManager:
         """Apply temporal decay to older documents."""
 ```
 
+**Ollama Embedding API**:
+
+Request:
+```http
+POST http://localhost:11434/api/embeddings
+Content-Type: application/json
+
+{
+  "model": "qwen3-embedding:0.6b",
+  "prompt": "text to embed"
+}
+```
+
+Response:
+```json
+{
+  "embedding": [0.123, -0.456, 0.789, ...]
+}
+```
+
+**BM25 Implementation**:
+The `_bm25_score(query, doc)` method implements standard Okapi BM25:
+- Tokenize `doc` into terms (split on whitespace, lowercase)
+- For each query term, compute: `idf * (tf * (k1 + 1)) / (tf + k1 * (1 - b + b * |doc| / avgdl))`
+- Sum scores across all query terms
+- `k1=1.5`, `b=0.75` (standard defaults)
+- `idf = log((N - n + 0.5) / (n + 0.5) + 1)` where N=total docs, n=docs containing term
+
 **Embedding Config**:
 - Model: `qwen3-embedding:0.6b` via Ollama
 - Endpoint: `POST http://localhost:11434/api/embeddings`
@@ -420,9 +448,33 @@ After migration:
 
 Currently `DELETE /api/sessions/{session_id}` deletes JSONL file.
 
-After migration:
-- Mark session entries as "[deleted]" in daily logs (append-only, don't modify files)
-- Add `deleted_sessions` tracking in a `memory/.deleted` index file
+After migration (append-only, files are never modified after write):
+- Append a deletion marker to the daily log: `## Session: {session_id} [DELETED]`
+- Maintain a `memory/.deleted` index file (JSON, format below) to skip deleted sessions in listings
+- This index is the only mutable file; it is small and easily rebuilt from daily logs
+
+`memory/.deleted` format:
+```json
+{
+  "deleted_sessions": ["session_id_1", "session_id_2"],
+  "deleted_at": {
+    "session_id_1": "2026-03-28T20:45:00Z",
+    "session_id_2": "2026-03-28T21:00:00Z"
+  }
+}
+```
+
+On `DELETE /api/sessions/{session_id}`:
+1. Append `[DELETED]` marker to today's daily log under the session block
+2. Add session_id to `memory/.deleted`
+3. Return success
+
+On `GET /api/sessions`:
+1. Scan `memory/*.md` for all `## Session:` blocks
+2. Exclude any session_id found in `memory/.deleted`
+
+On `GET /api/sessions/{session_id}/messages`:
+1. If session_id in `memory/.deleted`, return 404
 
 ---
 
