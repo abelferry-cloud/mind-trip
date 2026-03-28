@@ -20,7 +20,7 @@ structlog.configure(
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 启动：Markdown memory subsystem needs no initialization (stateless)
+    # 启动：Markdown 记忆子系统无需初始化（无状态）
     yield
     # 关闭：无状态
 
@@ -64,5 +64,6 @@ app = create_app()
 
 if __name__ == "__main__":
     import uvicorn
+    from app.config import get_settings
     settings = get_settings()
     uvicorn.run("app.main:app", host=settings.app_host, port=settings.app_port, reload=True)
