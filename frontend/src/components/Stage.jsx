@@ -1,9 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 
+import { setSessionTitle } from '../utils/sessionStorage'
+
 const Stage = ({
   session,
+  messages,
+  loadingMessages,
   onUpdateMessage,
+  onUpdateSessionTitle,
   inspectorFile,
   onInspectorFileChange,
   inputHeight,
@@ -16,13 +21,15 @@ const Stage = ({
   const [expandedThoughts, setExpandedThoughts] = useState({})
   const messagesEndRef = useRef(null)
 
+  const displayMessages = messages.length > 0 ? messages : session.messages
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }
 
   useEffect(() => {
     scrollToBottom()
-  }, [session.messages])
+  }, [displayMessages])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -33,6 +40,13 @@ const Stage = ({
       role: 'user',
       content: input.trim(),
       timestamp: new Date().toISOString()
+    }
+
+    // 如果是首条用户消息，更新会话标题
+    if (displayMessages.length === 0) {
+      const title = input.trim().slice(0, 50)
+      setSessionTitle(session.id, title)
+      onUpdateSessionTitle(session.id, title)
     }
 
     const newMessages = [...session.messages, userMessage]
@@ -129,14 +143,21 @@ const Stage = ({
       </header>
 
       <div className="messages-container">
-        {session.messages.length === 0 ? (
+        {loadingMessages && (
+          <div className="loading-history">
+            <div className="loading-spinner small"></div>
+            <span>加载历史消息...</span>
+          </div>
+        )}
+
+        {displayMessages.length === 0 ? (
           <div className="empty-state">
             <ChatEmptyIcon />
             <h3>开始新对话</h3>
             <p>输入你的旅行需求，AI 将为你规划完美行程</p>
           </div>
         ) : (
-          session.messages.map(message => (
+          displayMessages.map(message => (
             <div key={message.id} className={`message ${message.role}`}>
               <div className="message-avatar">
                 {message.role === 'assistant' ? <BotIcon /> : <UserIcon />}
