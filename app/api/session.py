@@ -1,6 +1,7 @@
 # app/api/session.py
 """会话管理 API - 增删查会话接口。"""
 import uuid
+from datetime import datetime, timezone
 from fastapi import APIRouter
 from pydantic import BaseModel
 from typing import List
@@ -23,8 +24,10 @@ class DeleteSessionResponse(BaseModel):
 
 
 class MessageItem(BaseModel):
-    role: str  # "human" | "ai"
+    role: str  # "user" | "assistant"
     content: str
+    id: str | None = None
+    timestamp: str | None = None
 
 
 class SessionMessagesResponse(BaseModel):
@@ -75,13 +78,15 @@ async def get_session_messages(session_id: str):
     history = mem.get_history()
 
     messages = []
-    for msg in history:
+    for i, msg in enumerate(history):
+        # Use current time as fallback timestamp for historical messages
+        msg_timestamp = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
         if isinstance(msg, HumanMessage):
-            messages.append(MessageItem(role="human", content=msg.content))
+            messages.append(MessageItem(role="user", content=msg.content, id=str(i), timestamp=msg_timestamp))
         elif isinstance(msg, AIMessage):
-            messages.append(MessageItem(role="ai", content=msg.content))
+            messages.append(MessageItem(role="assistant", content=msg.content, id=str(i), timestamp=msg_timestamp))
         else:
-            messages.append(MessageItem(role=msg.type, content=msg.content))
+            messages.append(MessageItem(role=msg.type, content=msg.content, id=str(i), timestamp=msg_timestamp))
 
     return SessionMessagesResponse(session_id=session_id, messages=messages)
 
