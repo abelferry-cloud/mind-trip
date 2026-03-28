@@ -13,8 +13,8 @@ from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 from app.graph.sys_prompt_builder import get_supervisor_loader
 from app.services.model_router import get_model_router
 from app.memory.session_manager import get_session_memory_manager
-from app.memory.daily_writer import DailyMemoryWriter
-from app.memory.session_persistence import get_session_persistence
+from app.memory.daily_log import DailyLogManager, get_daily_log_manager
+from app.memory.injector import MemoryInjector, get_memory_injector
 
 
 class ChatService:
@@ -31,8 +31,8 @@ class ChatService:
         self._prompt_loader = get_supervisor_loader(mode="main")
         self._router = get_model_router()
         self._memory_manager = get_session_memory_manager()
-        self._daily_writer = DailyMemoryWriter()
-        self._persistence = get_session_persistence()
+        self._daily_writer = get_daily_log_manager()
+        self._injector = get_memory_injector()
 
     async def chat(self, user_id: str, session_id: str, message: str) -> dict:
         """处理用户对话请求。
@@ -58,15 +58,27 @@ class ChatService:
         system_prompt = prompt_result["system_prompt"]
         workspace_loaded_at = prompt_result["workspace_loaded_at"]
 
-        # 2. 获取对话历史并格式化
+        # 2. Load session memory (today + yesterday + MEMORY.md)
+        session_memory = await self._injector.load_session_memory(
+            user_id=user_id,
+            session_id=session_id,
+            mode="main",
+        )
+
+        # 3. 获取对话历史并格式化
         mem = self._memory_manager.get_memory(session_id)
         history = mem.get_history()
         formatted_history = self._format_history(history)
 
-        # 3. 将 history 追加到 system prompt
-        full_system = system_prompt
+        # 4. 将 history 追加到 system prompt
+        if session_memory:
+            memory_section = f"\n\n## Memory\n\n{session_memory}"
+        else:
+            memory_section = ""
         if formatted_history:
-            full_system = f"{system_prompt}\n\n## 对话历史\n{formatted_history}"
+            full_system = f"{system_prompt}{memory_section}\n\n## 对话历史\n{formatted_history}"
+        else:
+            full_system = f"{system_prompt}{memory_section}"
 
         # 4. 将 full_system + user_message 发送给模型
         model_used = self._detect_model()
@@ -83,20 +95,6 @@ class ChatService:
             user_id=user_id,
             human_message=message,
             ai_message=answer,
-        )
-
-        # 同步写入 JSONL
-        self._persistence.save_message(
-            session_id=session_id,
-            role="human",
-            content=message,
-            user_id=user_id,
-        )
-        self._persistence.save_message(
-            session_id=session_id,
-            role="ai",
-            content=answer,
-            user_id=None,
         )
 
         return {

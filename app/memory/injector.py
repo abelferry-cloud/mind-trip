@@ -63,3 +63,15 @@ class MemoryInjector:
                 parts.append(f"## 长期记忆 (MEMORY.md)\n\n{memory_content}")
 
         return "\n\n".join(parts) if parts else ""
+
+
+# Singleton
+_injector: Optional["MemoryInjector"] = None
+
+
+def get_memory_injector() -> "MemoryInjector":
+    """Get the singleton MemoryInjector instance."""
+    global _injector
+    if _injector is None:
+        _injector = MemoryInjector()
+    return _injector
