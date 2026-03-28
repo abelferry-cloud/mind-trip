@@ -1,63 +1,82 @@
 # app/api/chat.py
-"""聊天 API - 主要对话端点。"""
+"""聊天 API - 基于动态 System Prompt 的对话端点。
+
+核心流程：
+1. 每次请求时，WorkspacePromptLoader 动态加载 workspace/*.md 为 System Prompt
+2. 将 System Prompt + User Message 发送给模型
+3. 返回模型的思考结果
+
+暂不包含：工具调用、记忆存储、多 Agent 规划流程
+"""
 import asyncio
 from fastapi import APIRouter, Request, BackgroundTasks
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import Optional
-from app.agents.supervisor import PlanningAgent
+from app.services.chat_service import get_chat_service
 from app.config import get_settings
-from app.api.plan import save_plan
 
 router = APIRouter(prefix="/api", tags=["chat"])
+
 
 class ChatRequest(BaseModel):
     user_id: str
     message: str
     session_id: str
 
+
 class ChatResponse(BaseModel):
     answer: str
-    plan_id: str
-    agent_trace: dict
-    health_alerts: list
-    preference_compliance: list
+    system_prompt: str
+    model_used: str
+    workspace_loaded_at: str
+    history_count: int
 
-_agent = PlanningAgent()
 
 @router.post("/chat", response_model=ChatResponse)
 async def chat(req: ChatRequest, request: Request, background_tasks: BackgroundTasks):
-    """主要聊天端点 - 触发完整的多 Agent 规划。
+    """对话端点 - 基于动态 System Prompt 的智能问答。
 
-    根据设计文档第 6.2 节：完整规划请求有 90 秒超时。
-    使用 asyncio.wait_for 强制执行超时。
+    每次请求时：
+    1. 从 workspace/*.md 动态加载 System Prompt
+    2. 将 System Prompt + User Message 发送给模型
+    3. 返回模型回复
     """
     settings = get_settings()
+    chat_service = get_chat_service()
 
     try:
         result = await asyncio.wait_for(
-            _agent.plan(req.user_id, req.session_id, req.message),
-            timeout=settings.request_timeout
+            chat_service.chat(req.user_id, req.session_id, req.message),
+            timeout=settings.request_timeout,
         )
     except asyncio.TimeoutError:
         return JSONResponse(
             status_code=200,
             content={
-                "answer": "规划请求超时，请稍后重试或简化需求（如减少天数）",
-                "plan_id": "",
-                "agent_trace": {},
-                "health_alerts": [],
-                "preference_compliance": []
+                "answer": "请求超时，请稍后重试",
+                "system_prompt": "",
+                "model_used": "",
+                "workspace_loaded_at": "",
+                "history_count": 0,
+            }
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=200,
+            content={
+                "answer": f"出错了：{str(e)}",
+                "system_prompt": "",
+                "model_used": "",
+                "workspace_loaded_at": "",
+                "history_count": 0,
             }
         )
 
-    # 后台保存方案
-    save_plan(result["plan_id"], result)
-
     return ChatResponse(
-        answer=f"为您规划了{result['city']}{result['days']}天行程，祝您旅途愉快！",
-        plan_id=result["plan_id"],
-        agent_trace=result["agent_trace"],
-        health_alerts=result.get("health_alerts", []),
-        preference_compliance=result.get("preference_compliance", [])
+        answer=result["answer"],
+        system_prompt=result["system_prompt"],
+        model_used=result["model_used"],
+        workspace_loaded_at=result["workspace_loaded_at"],
+        history_count=result.get("history_count", 0),
     )
