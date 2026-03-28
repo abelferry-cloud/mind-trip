@@ -9,13 +9,21 @@
 """
 
 import json
+import logging
 import os
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from filelock import FileLock
+
+logger = logging.getLogger(__name__)
+
+# Constants
+DEFAULT_LOCK_TIMEOUT = 10
+VALID_ROLES = ("human", "ai")
+SESSIONS_FILE = "sessions.json"
 
 
 class SessionPersistenceManager:
@@ -30,7 +38,7 @@ class SessionPersistenceManager:
         self._base_dir = Path(base_dir)
         self._base_dir.mkdir(parents=True, exist_ok=True)
 
-        self._index_file = self._base_dir / "sessions.json"
+        self._index_file = self._base_dir / SESSIONS_FILE
         self._lock_file = self._base_dir / ".sessions.lock"
 
     def save_message(
@@ -48,7 +56,7 @@ class SessionPersistenceManager:
             content: 消息内容
             user_id: 用户 ID（human 消息时有值，ai 消息时为 None）
         """
-        if role not in ("human", "ai"):
+        if role not in VALID_ROLES:
             raise ValueError(f"role must be 'human' or 'ai', got '{role}'")
 
         session_file = self._base_dir / f"{session_id}.jsonl"
@@ -62,7 +70,7 @@ class SessionPersistenceManager:
         }
 
         # 使用文件锁保护写入
-        lock = FileLock(str(self._lock_file), timeout=10)
+        lock = FileLock(str(self._lock_file), timeout=DEFAULT_LOCK_TIMEOUT)
         with lock:
             # 追加写入 JSONL 文件
             with open(session_file, "a", encoding="utf-8") as f:
@@ -86,7 +94,7 @@ class SessionPersistenceManager:
             return []
 
         messages = []
-        lock = FileLock(str(self._lock_file), timeout=10)
+        lock = FileLock(str(self._lock_file), timeout=DEFAULT_LOCK_TIMEOUT)
         with lock:
             with open(session_file, "r", encoding="utf-8") as f:
                 for line in f:
@@ -112,7 +120,7 @@ class SessionPersistenceManager:
         """
         session_file = self._base_dir / f"{session_id}.jsonl"
 
-        lock = FileLock(str(self._lock_file), timeout=10)
+        lock = FileLock(str(self._lock_file), timeout=DEFAULT_LOCK_TIMEOUT)
         with lock:
             # 删除 session 文件
             if session_file.exists():
@@ -124,42 +132,52 @@ class SessionPersistenceManager:
                 del index[session_id]
                 self._save_index(index)
 
+    def _parse_session_file(self, jsonl_path: Path) -> Tuple[int, Optional[str], Optional[str]]:
+        """Parse a session file, return (message_count, created_at, updated_at).
+
+        Returns:
+            Tuple of (message_count, created_at, updated_at).
+            On error, returns (0, None, None).
+        """
+        message_count = 0
+        created_at = None
+        updated_at = None
+
+        try:
+            with open(jsonl_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line:
+                        msg = json.loads(line)
+                        message_count += 1
+                        ts = msg.get("timestamp")
+                        if ts:
+                            if created_at is None or ts < created_at:
+                                created_at = ts
+                            if updated_at is None or ts > updated_at:
+                                updated_at = ts
+        except (json.JSONDecodeError, IOError) as e:
+            logger.warning(f"Failed to parse session file {jsonl_path}: {e}")
+            return 0, None, None
+
+        return message_count, created_at, updated_at
+
     def _rebuild_index(self) -> None:
         """重建索引 - 扫描所有 .jsonl 文件重建 sessions.json
 
         用于 sessions.json 损坏时的恢复。
         """
-        lock = FileLock(str(self._lock_file), timeout=10)
+        lock = FileLock(str(self._lock_file), timeout=DEFAULT_LOCK_TIMEOUT)
         with lock:
             index: Dict[str, Dict] = {}
 
             # 扫描所有 .jsonl 文件
             for session_file in self._base_dir.glob("*.jsonl"):
-                if session_file.name == "sessions.json":
+                if session_file.name == SESSIONS_FILE:
                     continue
 
                 session_id = session_file.stem
-                message_count = 0
-                created_at = None
-                updated_at = None
-
-                # 读取文件获取统计信息
-                try:
-                    with open(session_file, "r", encoding="utf-8") as f:
-                        for line in f:
-                            line = line.strip()
-                            if line:
-                                msg = json.loads(line)
-                                message_count += 1
-                                ts = msg.get("timestamp")
-                                if ts:
-                                    if created_at is None or ts < created_at:
-                                        created_at = ts
-                                    if updated_at is None or ts > updated_at:
-                                        updated_at = ts
-                except (json.JSONDecodeError, IOError):
-                    # 跳过损坏的文件
-                    continue
+                message_count, created_at, updated_at = self._parse_session_file(session_file)
 
                 if message_count > 0:
                     index[session_id] = {
@@ -211,26 +229,14 @@ class SessionPersistenceManager:
         session_file = self._base_dir / f"{session_id}.jsonl"
 
         # 计算当前文件的消息数和最新时间
-        message_count = 0
-        created_at = None
-        updated_at = None
+        message_count, created_at, updated_at = 0, None, None
 
         if session_file.exists():
-            try:
-                with open(session_file, "r", encoding="utf-8") as f:
-                    for line in f:
-                        line = line.strip()
-                        if line:
-                            msg = json.loads(line)
-                            message_count += 1
-                            ts = msg.get("timestamp")
-                            if ts:
-                                if created_at is None or ts < created_at:
-                                    created_at = ts
-                                if updated_at is None or ts > updated_at:
-                                    updated_at = ts
-            except (json.JSONDecodeError, IOError):
-                pass
+            message_count, created_at, updated_at = self._parse_session_file(session_file)
+            # If parsing failed (returned 0, None, None), skip updating this session
+            if message_count == 0 and created_at is None:
+                logger.warning(f"Skipping index update for corrupted session: {session_id}")
+                return
 
         # 更新索引
         if session_id in index:
