@@ -5,8 +5,6 @@ from langchain_classic.memory import ConversationBufferMemory as BaseConversatio
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 from pydantic import BaseModel
 
-from app.memory.session_persistence import get_session_persistence, SessionPersistenceManager
-
 
 # ConversationBufferMemory key constants
 DEFAULT_OUTPUT_KEY = "output"
@@ -41,18 +39,7 @@ class SessionMemoryManager:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance._memories: Dict[str, ConversationBufferMemory] = {}
-            cls._instance._persistence = get_session_persistence()
-            cls._instance._restored = False
         return cls._instance
-
-    def _restore_all_sessions(self) -> None:
-        """启动时从 JSONL 恢复所有会话。"""
-        if self._restored:
-            return
-        self._restored = True
-        sessions = self._persistence.list_sessions()
-        for session_id in sessions:
-            self._load_session_from_jsonl(session_id)
 
     def _create_memory(self) -> ConversationBufferMemory:
         """Create a new ConversationBufferMemory instance with default keys."""
@@ -62,25 +49,8 @@ class SessionMemoryManager:
             input_key=DEFAULT_INPUT_KEY,
         )
 
-    def _load_session_from_jsonl(self, session_id: str) -> None:
-        """从 JSONL 加载单个会话到内存。"""
-        if session_id in self._memories:
-            return
-        messages = self._persistence.load_session(session_id)
-        if not messages:
-            return
-        mem = self._create_memory()
-        # 批量加载历史
-        for msg in messages:
-            if msg["role"] == "human":
-                mem.chat_memory.messages.append(HumanMessage(content=msg["content"]))
-            elif msg["role"] == "ai":
-                mem.chat_memory.messages.append(AIMessage(content=msg["content"]))
-        self._memories[session_id] = mem
-
     def get_memory(self, session_id: str) -> ConversationBufferMemory:
         """获取指定 session_id 的 memory 实例，不存在则创建。"""
-        self._restore_all_sessions()
         if session_id not in self._memories:
             self._memories[session_id] = self._create_memory()
         return self._memories[session_id]

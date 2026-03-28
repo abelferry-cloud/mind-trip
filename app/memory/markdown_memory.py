@@ -174,3 +174,17 @@ class MarkdownMemoryManager:
         temp_file = self.memory_path.with_suffix(".md.tmp")
         temp_file.write_text(content, encoding="utf-8")
         temp_file.replace(self.memory_path)
+
+
+# Singleton
+_memory_mgr: Optional["MarkdownMemoryManager"] = None
+
+
+def get_markdown_memory_manager() -> "MarkdownMemoryManager":
+    """Get the global MarkdownMemoryManager singleton instance."""
+    global _memory_mgr
+    if _memory_mgr is None:
+        from app.config import get_settings
+        settings = get_settings()
+        _memory_mgr = MarkdownMemoryManager(memory_path=Path(settings.memory_file))
+    return _memory_mgr

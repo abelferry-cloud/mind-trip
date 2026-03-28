@@ -9,6 +9,16 @@ from typing import Optional
 
 from filelock import FileLock
 
+_daily_log_manager: Optional["DailyLogManager"] = None
+
+
+def get_daily_log_manager() -> "DailyLogManager":
+    """Get the singleton DailyLogManager instance."""
+    global _daily_log_manager
+    if _daily_log_manager is None:
+        _daily_log_manager = DailyLogManager()
+    return _daily_log_manager
+
 
 class DailyLogManager:
     """Append-only daily session logs.
