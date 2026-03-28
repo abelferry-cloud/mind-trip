@@ -27,10 +27,8 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     answer: str
-    system_prompt: str
-    model_used: str
-    workspace_loaded_at: str
-    history_count: int
+    metadata: dict
+    reasoning: Optional[dict] = None
 
 
 @router.post("/chat", response_model=ChatResponse)
@@ -55,10 +53,8 @@ async def chat(req: ChatRequest, request: Request, background_tasks: BackgroundT
             status_code=200,
             content={
                 "answer": "请求超时，请稍后重试",
-                "system_prompt": "",
-                "model_used": "",
-                "workspace_loaded_at": "",
-                "history_count": 0,
+                "metadata": {"model": "", "timestamp": ""},
+                "reasoning": None,
             }
         )
     except Exception as e:
@@ -66,17 +62,13 @@ async def chat(req: ChatRequest, request: Request, background_tasks: BackgroundT
             status_code=200,
             content={
                 "answer": f"出错了：{str(e)}",
-                "system_prompt": "",
-                "model_used": "",
-                "workspace_loaded_at": "",
-                "history_count": 0,
+                "metadata": {"model": "", "timestamp": ""},
+                "reasoning": None,
             }
         )
 
     return ChatResponse(
         answer=result["answer"],
-        system_prompt=result["system_prompt"],
-        model_used=result["model_used"],
-        workspace_loaded_at=result["workspace_loaded_at"],
-        history_count=result.get("history_count", 0),
+        metadata=result.get("metadata", {}),
+        reasoning=result.get("reasoning"),
     )
