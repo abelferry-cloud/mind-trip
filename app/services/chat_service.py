@@ -7,6 +7,7 @@
 
 包含：记忆存储（SessionMemoryManager + DailyMemoryWriter）
 """
+from datetime import datetime, timezone
 from typing import Optional, List
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 from app.graph.sys_prompt_builder import get_supervisor_loader
@@ -72,7 +73,8 @@ class ChatService:
             system=full_system,
         )
 
-        # 5. 保存对话到记忆
+        # 5. 保存对话到记忆（history_count 是保存前的消息数）
+        history_count = len(history)
         mem.save_context({"input": message}, {"output": answer})
         self._daily_writer.append(
             session_id=session_id,
@@ -83,9 +85,11 @@ class ChatService:
 
         return {
             "answer": answer,
-            "system_prompt": system_prompt,
-            "model_used": model_used,
-            "workspace_loaded_at": workspace_loaded_at,
+            "metadata": {
+                "model": model_used,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            },
+            "reasoning": None,  # 预留扩展
         }
 
     def _format_history(self, history: List[BaseMessage]) -> str:
