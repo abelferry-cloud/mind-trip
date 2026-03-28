@@ -45,6 +45,11 @@ class TestFullLifecycle:
             jsonl_file = Path(tmpdir) / f"{sid}.jsonl"
             assert jsonl_file.exists()
 
+            # 验证 sessions.json
+            index = persistence.list_sessions()
+            assert sid in index
+            assert index[sid]["message_count"] == 2
+
             # 第二次：模拟重启，新实例从 JSONL 恢复
             session_manager.SessionMemoryManager._instance = None
             manager2 = session_manager.SessionMemoryManager()

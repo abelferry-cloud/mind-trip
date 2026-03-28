@@ -113,6 +113,13 @@ class TestSessionPersistenceManager:
         assert session_id in index
         assert index[session_id]["message_count"] == 3
 
+        # 验证消息内容也正确恢复
+        messages = manager.load_session(session_id)
+        assert len(messages) == 3
+        assert messages[0]["content"] == "测试消息"
+        assert messages[1]["content"] == "测试回复"
+        assert messages[2]["content"] == "第二条消息"
+
     def test_list_sessions(self, manager, temp_dir):
         """测试列出所有会话"""
         # 创建多个会话
@@ -158,8 +165,7 @@ class TestSessionPersistenceManager:
 
         # 验证消息数量正确（10 条 * 3 线程）
         messages = manager.load_session(session_id)
-        # 由于并发，可能会有一些消息丢失，但文件应该不损坏
-        assert len(messages) > 0
+        assert len(messages) == 30, f"Expected 30 messages, got {len(messages)}"
 
 
 class TestGetSessionPersistence:
