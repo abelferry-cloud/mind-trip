@@ -1,17 +1,19 @@
 # app/api/session.py
-"""会话管理 API - 增删查会话接口。"""
+"""会话管理 API - 基于 Markdown daily logs 的会话接口。
+
+Reference: OpenClaw's memory/YYYY-MM-DD.md session tracking.
+Session list derived from scanning memory/ files for ## Session: blocks.
+"""
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 from fastapi import APIRouter
 from pydantic import BaseModel
 from typing import List
-from langchain_core.messages import HumanMessage, AIMessage
-from app.memory.session_manager import get_session_memory_manager, SessionInfo
-from app.memory.session_persistence import get_session_persistence
+
+from app.memory.daily_log import DailyLogManager, get_daily_log_manager
 
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
-
-_memory_manager = get_session_memory_manager()
 
 
 class CreateSessionResponse(BaseModel):
@@ -35,83 +37,112 @@ class SessionMessagesResponse(BaseModel):
     messages: List[MessageItem]
 
 
+class SessionInfo(BaseModel):
+    session_id: str
+    history_count: int
+    has_memory: bool
+
+
+_daily_mgr: DailyLogManager = get_daily_log_manager()
+
+
+def _scan_sessions_from_daily_logs() -> List[SessionInfo]:
+    """Scan all memory/*.md files and extract unique sessions."""
+    sessions = {}
+    memory_dir = Path(__file__).parent.parent / "workspace" / "memory"
+    if not memory_dir.exists():
+        return []
+
+    import re
+    for f in sorted(memory_dir.glob("*.md")):
+        if f.name.startswith("."):
+            continue
+        content = f.read_text(encoding="utf-8")
+        # Find all ## Session: {id} blocks
+        for match in re.finditer(r"## Session: (\S+)(?:\s+\[DELETED\])?", content):
+            session_id = match.group(1)
+            if session_id not in sessions:
+                sessions[session_id] = {"id": session_id, "count": 0}
+            sessions[session_id]["count"] += content.count(f"Human:", match.start())
+
+    return [
+        SessionInfo(
+            session_id=s["id"],
+            history_count=s["count"],
+            has_memory=s["count"] > 0,
+        )
+        for s in sessions.values()
+    ]
+
+
 @router.post("", response_model=CreateSessionResponse)
 async def create_session():
-    """创建新会话。
-
-    Returns:
-        新创建的 session_id
-    """
+    """创建新会话（不写入文件，会话在首次消息时创建日志条目）。"""
     session_id = str(uuid.uuid4())
-    _memory_manager.get_memory(session_id)
     return CreateSessionResponse(session_id=session_id)
 
 
 @router.get("/{session_id}", response_model=SessionInfo)
 async def get_session(session_id: str):
-    """获取会话信息。
-
-    Args:
-        session_id: 会话 ID
-
-    Returns:
-        会话信息（消息数量、是否有记忆）
-    """
-    return SessionInfo(
-        session_id=session_id,
-        history_count=_memory_manager.get_history_count(session_id),
-        has_memory=_memory_manager.has_memory(session_id),
-    )
+    """获取会话信息。"""
+    sessions = _scan_sessions_from_daily_logs()
+    for s in sessions:
+        if s.session_id == session_id:
+            return s
+    # Return empty info for new session
+    return SessionInfo(session_id=session_id, history_count=0, has_memory=False)
 
 
 @router.get("/{session_id}/messages", response_model=SessionMessagesResponse)
 async def get_session_messages(session_id: str):
-    """获取会话的所有历史消息。
-
-    Args:
-        session_id: 会话 ID
-
-    Returns:
-        会话消息列表
-    """
-    mem = _memory_manager.get_memory(session_id)
-    history = mem.get_history()
+    """获取会话的所有历史消息。"""
+    session_content = _daily_mgr.read_session(session_id)
+    if not session_content:
+        return SessionMessagesResponse(session_id=session_id, messages=[])
 
     messages = []
-    for i, msg in enumerate(history):
-        # Use current time as fallback timestamp for historical messages
-        msg_timestamp = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
-        if isinstance(msg, HumanMessage):
-            messages.append(MessageItem(role="user", content=msg.content, id=str(i), timestamp=msg_timestamp))
-        elif isinstance(msg, AIMessage):
-            messages.append(MessageItem(role="assistant", content=msg.content, id=str(i), timestamp=msg_timestamp))
-        else:
-            messages.append(MessageItem(role=msg.type, content=msg.content, id=str(i), timestamp=msg_timestamp))
+    import re
+    # Parse each [HH:MM:SS] Human: / AI: block
+    pattern = r"\[(\d{2}:\d{2}:\d{2})\]\nHuman: (.+?)\nAI: (.+?)(?=\n\[|\Z)"
+    for i, match in enumerate(re.finditer(pattern, session_content, re.DOTALL)):
+        ts = match.group(1)
+        messages.append(MessageItem(role="user", content=match.group(2).strip(), id=str(i * 2), timestamp=ts))
+        messages.append(MessageItem(role="assistant", content=match.group(3).strip(), id=str(i * 2 + 1), timestamp=ts))
 
     return SessionMessagesResponse(session_id=session_id, messages=messages)
 
 
 @router.get("", response_model=List[SessionInfo])
 async def list_sessions():
-    """列出所有会话（仅返回有记忆的会话）。
-
-    Returns:
-        所有有历史消息的会话列表
-    """
-    return _memory_manager.list_sessions()
+    """列出所有会话。"""
+    return _scan_sessions_from_daily_logs()
 
 
 @router.delete("/{session_id}", response_model=DeleteSessionResponse)
 async def delete_session(session_id: str):
-    """删除会话（清除会话记忆）。
+    """删除会话（软删除：标记为 deleted）。"""
+    # Append deletion marker to today's daily log
+    now = datetime.now()
+    date_str = now.strftime("%Y-%m-%d")
+    marker = f"\n## Session: {session_id} [DELETED]\n"
+    memory_dir = Path(__file__).parent.parent / "workspace" / "memory"
+    day_file = memory_dir / f"{date_str}.md"
+    if day_file.exists():
+        with open(day_file, "a", encoding="utf-8") as f:
+            f.write(marker)
 
-    Args:
-        session_id: 会话 ID
+    # Update .deleted index
+    deleted_index = memory_dir / ".deleted"
+    import json
+    deleted_data = {}
+    if deleted_index.exists():
+        deleted_data = json.loads(deleted_index.read_text(encoding="utf-8"))
+    if "deleted_sessions" not in deleted_data:
+        deleted_data["deleted_sessions"] = []
+        deleted_data["deleted_at"] = {}
+    if session_id not in deleted_data["deleted_sessions"]:
+        deleted_data["deleted_sessions"].append(session_id)
+        deleted_data["deleted_at"][session_id] = datetime.now(timezone.utc).isoformat()
+    deleted_index.write_text(json.dumps(deleted_data, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    Returns:
-        删除结果
-    """
-    persistence = get_session_persistence()
-    persistence.delete_session(session_id)
-    _memory_manager.clear_session(session_id)
-    return DeleteSessionResponse(success=True, message=f"Session {session_id} 已清除")
+    return DeleteSessionResponse(success=True, message=f"Session {session_id} 已标记为已删除")
