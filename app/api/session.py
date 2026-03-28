@@ -106,7 +106,7 @@ async def delete_session(session_id: str):
     Returns:
         删除结果
     """
-    _memory_manager.clear_session(session_id)
     persistence = get_session_persistence()
     persistence.delete_session(session_id)
+    _memory_manager.clear_session(session_id)
     return DeleteSessionResponse(success=True, message=f"Session {session_id} 已清除")
