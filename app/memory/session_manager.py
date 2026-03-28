@@ -8,6 +8,11 @@ from pydantic import BaseModel
 from app.memory.session_persistence import get_session_persistence, SessionPersistenceManager
 
 
+# ConversationBufferMemory key constants
+DEFAULT_OUTPUT_KEY = "output"
+DEFAULT_INPUT_KEY = "input"
+
+
 class SessionInfo(BaseModel):
     """会话信息（与 API 层解耦，避免循环导入）。"""
     session_id: str
@@ -49,6 +54,14 @@ class SessionMemoryManager:
         for session_id in sessions:
             self._load_session_from_jsonl(session_id)
 
+    def _create_memory(self) -> ConversationBufferMemory:
+        """Create a new ConversationBufferMemory instance with default keys."""
+        return ConversationBufferMemory(
+            return_messages=True,
+            output_key=DEFAULT_OUTPUT_KEY,
+            input_key=DEFAULT_INPUT_KEY,
+        )
+
     def _load_session_from_jsonl(self, session_id: str) -> None:
         """从 JSONL 加载单个会话到内存。"""
         if session_id in self._memories:
@@ -56,11 +69,7 @@ class SessionMemoryManager:
         messages = self._persistence.load_session(session_id)
         if not messages:
             return
-        mem = ConversationBufferMemory(
-            return_messages=True,
-            output_key="output",
-            input_key="input",
-        )
+        mem = self._create_memory()
         # 批量加载历史
         for msg in messages:
             if msg["role"] == "human":
@@ -73,11 +82,7 @@ class SessionMemoryManager:
         """获取指定 session_id 的 memory 实例，不存在则创建。"""
         self._restore_all_sessions()
         if session_id not in self._memories:
-            self._memories[session_id] = ConversationBufferMemory(
-                return_messages=True,
-                output_key="output",
-                input_key="input",
-            )
+            self._memories[session_id] = self._create_memory()
         return self._memories[session_id]
 
     def clear_session(self, session_id: str) -> None:
