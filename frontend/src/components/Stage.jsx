@@ -21,7 +21,7 @@ const Stage = ({
   const [expandedThoughts, setExpandedThoughts] = useState({})
   const messagesEndRef = useRef(null)
 
-  const displayMessages = messages.length > 0 ? messages : session.messages
+  const displayMessages = messages.length > 0 ? messages : (session?.messages || [])
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -33,7 +33,7 @@ const Stage = ({
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!input.trim() || isLoading) return
+    if (!input.trim() || isLoading || !session) return
 
     const userMessage = {
       id: Date.now().toString(),
@@ -125,7 +125,7 @@ const Stage = ({
     <main className="stage" style={style}>
       <header className="stage-header">
         <div className="stage-title">
-          <span>{session.title}</span>
+          <span>{session?.title || '新会话'}</span>
           <div className="stage-status">
             <span className={`status-dot ${isLoading ? '' : 'idle'}`}></span>
             <span>{isLoading ? '思考中...' : '就绪'}</span>

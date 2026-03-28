@@ -54,7 +54,7 @@ const App = () => {
     loadSessions()
   }, [])
 
-  const currentSession = sessions.find(s => s.id === currentSessionId) || sessions[0]
+  const currentSession = sessions.find(s => s.id === currentSessionId) || sessions[0] || null
 
   const handleNewSession = async () => {
     try {
