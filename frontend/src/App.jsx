@@ -224,7 +224,7 @@ const App = () => {
         onInputHeightChange={setInputHeight}
         onResizeStart={(e) => handleResizeStart(e, 'input')}
         resizing={resizing === 'input'}
-        historyMessages={historyMessages}
+        messages={historyMessages[currentSessionId] || []}
         loadingMessages={loadingMessages}
       />
 
