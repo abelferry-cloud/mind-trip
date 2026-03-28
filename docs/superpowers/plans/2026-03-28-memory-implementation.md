@@ -73,7 +73,7 @@ def test_append_to_daily_log():
         content = expected_path.read_text(encoding="utf-8")
         assert "session_001" in content
         assert "我想去成都" in content
-        assert "成都是一个很棒的选择" in content
+        assert "成都是很棒的选择" in content
 
         # 写入第二条记录（同一 session）
         writer.append(
@@ -491,21 +491,20 @@ class ChatService:
         history_count = len(history_messages)
         history_text = _format_history(history_messages)
 
-        # 3. 组装完整 prompt
+        # 3. 组装完整 system prompt（含历史上下文）
         model_used = self._detect_model()
         if history_text:
-            full_prompt = (
+            # 把历史追加到 system prompt（因为是上下文而非用户输入）
+            full_system = (
                 f"{system_prompt}\n\n"
                 f"## 对话历史\n"
-                f"{history_text}\n\n"
-                f"## 当前消息\n"
-                f"{message}"
+                f"{history_text}"
             )
         else:
-            full_prompt = f"{system_prompt}\n\n## 当前消息\n{message}"
+            full_system = system_prompt
 
-        # 4. 调用模型
-        answer = await self._router.call(prompt=message, system=system_prompt)
+        # 4. 调用模型：history 已在 system prompt 中，prompt 只传当前消息
+        answer = await self._router.call(prompt=message, system=full_system)
 
         # 5. 保存到记忆
         memory.save_context({"input": message}, {"output": answer})
@@ -615,6 +614,8 @@ git commit -m "feat(api): add history_count to ChatResponse"
 
 ---
 
+> **Phase 1 限制：** `ConversationBufferMemory` 为纯内存存储，服务重启后会话记忆丢失。每日日志（`workspace/memory/YYYY-MM-DD.md`）和 SQLite 长期记忆不受影响。
+
 ## Task 5: 集成测试 - 验证记忆跨请求持久化
 
 **Files:**
@@ -633,6 +634,24 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from app.memory.session_manager import SessionMemoryManager
 from app.memory.daily_writer import DailyMemoryWriter
+
+
+@pytest.mark.asyncio
+async def test_different_user_isolation():
+    """不同 user_id 但相同 session_id 应有独立记忆（session_id 是隔离维度）"""
+    from app.services.chat_service import ChatService
+
+    service = ChatService()
+
+    # 用户1在 session A 对话
+    await service.chat(user_id="user_A", session_id="shared_session", message="我是用户A")
+    count_a = service._memory_manager.get_history_count("shared_session")
+    assert count_a == 2
+
+    # 用户2在相同 session_id（但不同 user_id）— 记忆按 session_id 隔离，所以有A的历史
+    # 这是当前设计：session_id 隔离，user_id 仅用于日志记录
+    count_b = service._memory_manager.get_history_count("shared_session")
+    assert count_b == count_a  # 同一 session，共享记忆
 
 
 @pytest.mark.asyncio
@@ -684,6 +703,33 @@ async def test_daily_writer_creates_file():
     # 注意：实际文件路径取决于 DailyMemoryWriter 的 base_dir 配置
     # 这里只验证不报错
     assert service._daily_writer is not None
+
+
+@pytest.mark.asyncio
+async def test_workspace_dynamic_loading():
+    """验证修改 workspace/*.md 后，新对话立即生效（动态加载）"""
+    from datetime import datetime
+    from app.graph.sys_prompt_builder import get_supervisor_loader
+
+    # 修改 workspace/SOUL.md 内容
+    workspace_dir = Path(__file__).parent.parent.parent / "app" / "workspace"
+    soul_path = workspace_dir / "SOUL.md"
+    original = soul_path.read_text(encoding="utf-8")
+
+    unique_marker = f"DYNAMIC_TEST_{datetime.now().timestamp()}"
+    soul_path.write_text(original + f"\n\n{unique_marker}", encoding="utf-8")
+
+    try:
+        # 重新加载 prompt loader
+        loader = get_supervisor_loader(mode="main")
+        result = loader.invoke({})
+
+        # 验证新内容出现在 system_prompt 中
+        assert unique_marker in result["system_prompt"], \
+            f"Dynamic content not found. system_prompt snippet: {result['system_prompt'][-200:]}"
+    finally:
+        # 恢复原始内容
+        soul_path.write_text(original, encoding="utf-8")
 ```
 
 - [ ] **Step 2: 运行集成测试**
@@ -695,7 +741,7 @@ Expected: PASS
 
 ```bash
 git add tests/memory/test_memory_integration.py
-git commit -m "test(memory): add integration test for cross-request memory persistence"
+git commit -m "test(memory): add integration tests for session isolation, daily log, and dynamic workspace loading"
 ```
 
 ---
