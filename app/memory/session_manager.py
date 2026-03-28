@@ -2,7 +2,17 @@
 
 from typing import Dict, Optional, List
 from langchain_classic.memory import ConversationBufferMemory as BaseConversationBufferMemory
-from langchain_core.messages import BaseMessage
+from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
+from pydantic import BaseModel
+
+from app.memory.session_persistence import get_session_persistence, SessionPersistenceManager
+
+
+class SessionInfo(BaseModel):
+    """会话信息（与 API 层解耦，避免循环导入）。"""
+    session_id: str
+    history_count: int
+    has_memory: bool
 
 
 class ConversationBufferMemory(BaseConversationBufferMemory):
@@ -14,17 +24,54 @@ class ConversationBufferMemory(BaseConversationBufferMemory):
 
 
 class SessionMemoryManager:
-    """管理会话级的 ConversationBufferMemory 实例。
+    """管理会话级的 ConversationBufferMemory 实例（单例）。
 
     每个 session_id 对应一个独立的 ConversationBufferMemory，
     确保不同会话的记忆相互隔离。
     """
 
-    def __init__(self):
-        self._memories: Dict[str, ConversationBufferMemory] = {}
+    _instance: Optional["SessionMemoryManager"] = None
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            cls._instance._memories: Dict[str, ConversationBufferMemory] = {}
+            cls._instance._persistence = get_session_persistence()
+            cls._instance._restored = False
+        return cls._instance
+
+    def _restore_all_sessions(self) -> None:
+        """启动时从 JSONL 恢复所有会话。"""
+        if self._restored:
+            return
+        self._restored = True
+        sessions = self._persistence.list_sessions()
+        for session_id in sessions:
+            self._load_session_from_jsonl(session_id)
+
+    def _load_session_from_jsonl(self, session_id: str) -> None:
+        """从 JSONL 加载单个会话到内存。"""
+        if session_id in self._memories:
+            return
+        messages = self._persistence.load_session(session_id)
+        if not messages:
+            return
+        mem = ConversationBufferMemory(
+            return_messages=True,
+            output_key="output",
+            input_key="input",
+        )
+        # 批量加载历史
+        for msg in messages:
+            if msg["role"] == "human":
+                mem.chat_memory.messages.append(HumanMessage(content=msg["content"]))
+            elif msg["role"] == "ai":
+                mem.chat_memory.messages.append(AIMessage(content=msg["content"]))
+        self._memories[session_id] = mem
 
     def get_memory(self, session_id: str) -> ConversationBufferMemory:
         """获取指定 session_id 的 memory 实例，不存在则创建。"""
+        self._restore_all_sessions()
         if session_id not in self._memories:
             self._memories[session_id] = ConversationBufferMemory(
                 return_messages=True,
@@ -50,8 +97,25 @@ class SessionMemoryManager:
             return 0
         return len(self._memories[session_id].get_history())
 
+    def list_sessions(self) -> List[SessionInfo]:
+        """返回所有有记忆的会话列表。"""
+        return [
+            SessionInfo(
+                session_id=sid,
+                history_count=self.get_history_count(sid),
+                has_memory=self.has_memory(sid),
+            )
+            for sid in self._memories
+            if self.has_memory(sid)
+        ]
+
     def clear_all(self) -> None:
         """清除所有 session 的记忆。"""
         for mem in self._memories.values():
             mem.clear()
         self._memories.clear()
+
+
+def get_session_memory_manager() -> SessionMemoryManager:
+    """获取全局唯一的 SessionMemoryManager 实例。"""
+    return SessionMemoryManager()
