@@ -36,6 +36,21 @@ class Settings(BaseSettings):
     def model_chain_list(self) -> List[str]:
         return [m.strip() for m in self.model_chain.split(",")]
 
+    # Memory
+    memory_dir: str = "app/workspace/memory"
+    memory_file: str = "app/workspace/MEMORY.md"
+
+    # Ollama (for embedding)
+    ollama_base_url: str = "http://localhost:11434"
+    embedding_model: str = "qwen3-embedding:0.6b"
+
+    # RAG settings
+    rag_top_k: int = 5
+    rag_bm25_k1: float = 1.5
+    rag_bm25_b: float = 0.75
+    rag_rrf_k: int = 60
+    rag_temporal_decay_days: int = 30
+
     class Config:
         env_file = ".env"
         extra = "ignore"
