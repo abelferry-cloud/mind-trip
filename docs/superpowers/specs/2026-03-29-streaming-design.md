@@ -1,7 +1,7 @@
 # 流式输出 (Streaming) 功能设计
 
 **日期：** 2026-03-29
-**状态：** 已批准
+**状态：** 待实施
 **技术方案：** Server-Sent Events (SSE)
 
 ---
@@ -22,8 +22,8 @@
 ```
 ┌─────────────┐    SSE Events     ┌──────────────────┐
 │  FastAPI    │ ───────────────▶  │  React Frontend  │
-│  /api/chat  │                   │  EventSource     │
-│  (streaming)│                   │  └─ 状态面板      │
+│  /api/chat/ │                   │  EventSource     │
+│   stream    │                   │  └─ 状态面板      │
 └─────────────┘                   └──────────────────┘
 ```
 
@@ -33,11 +33,11 @@
 
 ### 3.1 新端点
 
-**端点：** `POST /api/chat/stream`
+**端点：** `GET /api/chat/stream`（通过 query params: `?session_id=xxx&user_id=xxx`）
 
 **响应：** `text/event-stream` (SSE)
 
-**CORS 配置：** SSE 端点需配置 CORS 头部，允许前端开发服务器 (`localhost:5173` Vite / `localhost:3000` CRA) 访问。在 `app/main.py` 的 CORS 中间件配置中添加stream端点的允许来源。
+**CORS 配置：** 复用现有 CORS 中间件配置，无需额外修改。
 
 **重连机制：** SSE 响应包含 `retry: 5000` 字段，告诉浏览器断连后等待 5 秒再重连。
 
@@ -155,7 +155,7 @@ const startStreaming = (sessionId, message) => {
   appendMessage(tempMessage)
 
   // 2. 连接 SSE
-  const es = new EventSource(`/api/chat/stream?session_id=${sessionId}`)
+  const es = new EventSource(`/api/chat/stream?session_id=${sessionId}&user_id=${userId}`)
   eventSourceRef.current = es
 
   // 3. 注册所有事件处理器
