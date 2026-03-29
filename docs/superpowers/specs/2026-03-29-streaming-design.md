@@ -37,18 +37,28 @@
 
 **响应：** `text/event-stream` (SSE)
 
+**CORS 配置：** SSE 端点需配置 CORS 头部，允许前端开发服务器 (`localhost:5173` Vite / `localhost:3000` CRA) 访问。在 `app/main.py` 的 CORS 中间件配置中添加stream端点的允许来源。
+
+**重连机制：** SSE 响应包含 `retry: 5000` 字段，告诉浏览器断连后等待 5 秒再重连。
+
+**心跳机制：** 每 15 秒发送 `ping` 事件保持连接活跃。
+
 ### 3.2 SSE 事件类型
 
 | 事件名 | 触发时机 | 数据内容 |
 |--------|----------|----------|
 | `agent_switch` | Agent 切换时 | `{agent: "PlanningAgent"}` |
+| `model_switch` | 模型切换时（fallback） | `{model: "claude", reason: "rate_limit"}` |
+| `iteration` | 工具调用循环次数 | `{iteration: 1, max_iterations: 10}` |
 | `tool_start` | 工具开始调用 | `{tool: "search_attractions", tool_call_id: "call_xxx"}` |
 | `tool_end` | 工具调用完成 | `{tool: "search_attractions", result: {...}, duration_ms: 120}` |
+| `tool_error` | 工具执行失败 | `{tool: "search_attractions", error: "timeout"}` |
 | `token_usage` | token 统计 | `{prompt_tokens: 100, completion_tokens: 50, total_tokens: 150}` |
 | `reasoning_step` | 推理步骤 | `{step: "分析用户偏好：深度体验型"}` |
 | `content_chunk` | 内容片段 | `{content: "正在为你规划..."}` |
 | `final` | 完成 | `{answer: "完整回复"}` |
 | `error` | 错误 | `{error: "错误信息"}` |
+| `ping` | 心跳（保持连接） | `{}` |
 
 ### 3.3 改造文件
 
@@ -64,14 +74,22 @@ class StreamManager:
     async def emit(self, event_name: str, data: dict): ...
 
     async def agent_switch(self, agent: str): ...
+    async def model_switch(self, model: str, reason: str): ...
+    async def iteration(self, iteration: int, max_iterations: int): ...
     async def tool_start(self, tool: str, tool_call_id: str): ...
     async def tool_end(self, tool: str, result: Any, duration_ms: int): ...
+    async def tool_error(self, tool: str, error: str): ...
     async def token_usage(self, prompt_tokens: int, completion_tokens: int, total_tokens: int): ...
     async def reasoning_step(self, step: str): ...
     async def content_chunk(self, content: str): ...
     async def final(self, answer: str): ...
     async def error(self, error: str): ...
+    async def ping(self): ...  # 心跳
 ```
+
+### 3.5 认证（安全考虑）
+
+SSE 端点通过 `user_id` + `session_id` 标识会话。初期实现复用现有的简单认证模式。后续应引入真实的用户认证机制（JWT / Session）防止会话劫持。
 
 ---
 
@@ -79,17 +97,27 @@ class StreamManager:
 
 ### 4.1 状态结构
 
+**设计原则：** 与 Stage.jsx 的 `session.messages` 模式对齐，不引入独立的 `streamingState`。流式状态作为消息对象的扩展字段。
+
 ```jsx
-const [streamingState, setStreamingState] = useState({
-  status: 'idle', // 'idle' | 'streaming' | 'done' | 'error'
-  agent: null,
+// 消息对象扩展
+const streamingMessage = {
+  id: 'temp_123',
+  role: 'assistant',
+  content: '',  // 打字机效果逐步填充
+  streaming: true,  // 标记为流式消息
+  status: 'streaming', // 'streaming' | 'done' | 'error'
+  agent: 'PlanningAgent',
   toolCalls: [], // [{tool, status: 'running'|'done'|'error', duration_ms?, result?}]
-  tokenUsage: null, // {prompt_tokens, completion_tokens, total_tokens}
+  tokenUsage: null,
   reasoningSteps: [],
-  contentBuffer: '',
-  fullAnswer: '',
-})
+}
 ```
+
+**状态面板独立于消息存在：**
+- 状态面板的数据来源是当前活跃消息的扩展字段（`agent`, `toolCalls`, `tokenUsage`, `reasoningSteps`）
+- `contentBuffer` 和打字机效果直接作用于消息的 `content` 字段
+- 流式完成后，`streaming: false`，消息变为普通消息
 
 ### 4.2 状态面板 UI
 
@@ -110,14 +138,63 @@ const [streamingState, setStreamingState] = useState({
 
 ### 4.3 打字机效果
 
-- 使用 `setInterval` 或 `requestAnimationFrame` 逐字显示
+- 使用 `setInterval` + `performance.now()` 计时，不依赖 `requestAnimationFrame`（浏览器后台会暂停）
 - 每收到 `content_chunk` 事件，累积到 `contentBuffer`
 - 打字速度：约 20ms/字符（可配置）
+- 收到 `final` 事件后，直接显示完整内容，停止打字机
 
-### 4.4 改造文件
+### 4.4 EventSource 管理
 
-1. **改造 `frontend/src/components/Stage.jsx`** — 添加 EventSource 连接和状态面板
-2. **改造 `frontend/src/App.jsx`** — 传递 SSE 相关 props（可选：统一状态管理）
+```jsx
+// 在 Stage.jsx 中
+const eventSourceRef = useRef(null)
+
+const startStreaming = (sessionId, message) => {
+  // 1. 创建流式消息（占位）
+  const tempMessage = { ...message, streaming: true, status: 'streaming' }
+  appendMessage(tempMessage)
+
+  // 2. 连接 SSE
+  const es = new EventSource(`/api/chat/stream?session_id=${sessionId}`)
+  eventSourceRef.current = es
+
+  es.addEventListener('agent_switch', (e) => {
+    updateMessage(tempMessage.id, { agent: JSON.parse(e.data).agent })
+  })
+
+  es.addEventListener('tool_start', (e) => {
+    const {tool, tool_call_id} = JSON.parse(e.data)
+    appendToolCall(tempMessage.id, {tool, status: 'running', tool_call_id})
+  })
+
+  es.addEventListener('tool_end', (e) => {
+    const {tool, result, duration_ms} = JSON.parse(e.data)
+    updateToolCall(tempMessage.id, tool, {status: 'done', result, duration_ms})
+  })
+
+  es.addEventListener('content_chunk', (e) => {
+    const {content} = JSON.parse(e.data)
+    // 打字机效果：累积到 content
+    typewriterAppend(tempMessage.id, content)
+  })
+
+  es.addEventListener('final', (e) => {
+    const {answer} = JSON.parse(e.data)
+    finalizeMessage(tempMessage.id, answer)
+    es.close()
+  })
+
+  es.addEventListener('error', (e) => {
+    handleStreamError(tempMessage.id, e.data)
+    es.close()
+  })
+}
+```
+
+### 4.5 改造文件
+
+1. **改造 `frontend/src/components/Stage.jsx`** — 添加 EventSource 连接、状态面板渲染、打字机效果逻辑
+2. **改造 `frontend/src/App.jsx`** — 无需大改，Props 接口保持兼容
 
 ---
 
@@ -152,8 +229,9 @@ ToolCallingService.call_with_tools()
 | 场景 | 处理方式 |
 |------|----------|
 | SSE 连接断开 | 前端显示"连接中断"，显示重连按钮 |
-| 工具执行失败 | 发出 `error` 事件，面板显示错误状态 |
+| 工具执行失败 | 发出 `tool_error` 事件，面板显示该工具错误状态 |
 | LLM 调用失败 | 发出 `error` 事件，优雅降级显示错误信息 |
+| 达到最大迭代次数 | 发出 `error` 事件（reason: "max_iterations"） |
 
 ---
 
