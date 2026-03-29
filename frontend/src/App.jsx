@@ -13,6 +13,7 @@ const App = () => {
   const [historyMessages, setHistoryMessages] = useState({})
   const [inspectorFile, setInspectorFile] = useState('SOUL.md')
   const [isLoading, setIsLoading] = useState(true)
+  const [sidebarVisible, setSidebarVisible] = useState(true)
 
   // Panel sizes
   const [sidebarWidth, setSidebarWidth] = useState(260)
@@ -149,6 +150,10 @@ const App = () => {
     setResizing(type)
   }, [])
 
+  const toggleSidebar = useCallback(() => {
+    setSidebarVisible(prev => !prev)
+  }, [])
+
   useEffect(() => {
     if (!resizing) return
 
@@ -195,23 +200,25 @@ const App = () => {
       ref={containerRef}
       className={`app-container ${resizing ? 'resizing' : ''}`}
     >
-      <Sidebar
-        style={{ width: sidebarWidth }}
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-        sessions={sessions}
-        currentSessionId={currentSessionId}
-        onSelectSession={handleSelectSession}
-        onNewSession={handleNewSession}
-        onDeleteSession={handleDeleteSession}
-        onRenameSession={handleRenameSession}
-      />
-
-      {/* Sidebar Resize Handle */}
-      <div
-        className="resize-handle vertical"
-        onMouseDown={(e) => handleResizeStart(e, 'sidebar')}
-      />
+      {sidebarVisible && (
+        <>
+          <Sidebar
+            style={{ width: sidebarWidth }}
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            sessions={sessions}
+            currentSessionId={currentSessionId}
+            onSelectSession={handleSelectSession}
+            onNewSession={handleNewSession}
+            onDeleteSession={handleDeleteSession}
+            onRenameSession={handleRenameSession}
+          />
+          <div
+            className="resize-handle vertical"
+            onMouseDown={(e) => handleResizeStart(e, 'sidebar')}
+          />
+        </>
+      )}
 
       <Stage
         style={{ flex: 1 }}
@@ -226,6 +233,8 @@ const App = () => {
         resizing={resizing === 'input'}
         messages={historyMessages[currentSessionId] || []}
         loadingMessages={loadingMessages}
+        onToggleSidebar={toggleSidebar}
+        sidebarVisible={sidebarVisible}
       />
 
       {/* Inspector Resize Handle */}
