@@ -55,7 +55,7 @@ const Inspector = ({ file, onFileChange, style }) => {
         const res = await fetch('/api/workspace/files')
         if (res.ok) {
           const data = await res.json()
-          setFiles(data)
+          setFiles(data.filter(f => ALLOWED_FILES.includes(f.name)))
           const f = data.find(x => x.name === file)
           if (f && currentModifiedAt && f.modified_at !== currentModifiedAt) {
             loadFileContent(file)
