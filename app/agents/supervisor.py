@@ -10,11 +10,8 @@ import uuid
 import time
 from typing import Any, Dict, List, Optional
 from app.agents.preference import PreferenceAgent
-from app.agents.attractions import AttractionsAgent
-from app.agents.route import RouteAgent
 from app.agents.budget import BudgetAgent
-from app.agents.food import FoodAgent
-from app.agents.hotel import HotelAgent
+from app.agents.travel_planner import TravelPlannerAgent
 from app.memory.short_term import get_short_term_memory
 from app.services.metrics_service import get_metrics_service
 from app.graph.sys_prompt_builder import get_supervisor_loader
@@ -75,11 +72,8 @@ class PlanningAgent:
 
     def __init__(self):
         self.pref_agent = PreferenceAgent()
-        self.attr_agent = AttractionsAgent()
-        self.route_agent = RouteAgent()
         self.budget_agent = BudgetAgent()
-        self.food_agent = FoodAgent()
-        self.hotel_agent = HotelAgent()
+        self.travel_agent = TravelPlannerAgent()
         self.metrics = get_metrics_service()
         # Workspace 动态加载器（每次 plan() 调用时重新读取 .md 文件）
         self._prompt_loader = get_supervisor_loader(mode="main")
@@ -119,40 +113,34 @@ class PlanningAgent:
             self.pref_agent.parse_and_update(user_id, message))
         preferences = await self.pref_agent.get_preference(user_id)
 
-        # 步骤 3：并行 - 景点 + 预算
-        attr_result, budget_result = await asyncio.gather(
-            trace("Attractions Agent", self.attr_agent.search(city, days, season, preferences)),
+        # 步骤 3：并行 - 搜索（景点/餐厅/酒店）+ 预算计算
+        search_result, budget_result = await asyncio.gather(
+            trace("TravelPlanner Agent (search)", self.travel_agent.search_all(city, days, budget, preferences)),
             trace("Budget Agent", self.budget_agent.calculate(days, preferences.get("spending_style", "适中")))
         )
-
-        attractions = attr_result.get("attractions", [])
+        attractions = search_result.get("attractions", [])
+        restaurants = search_result.get("restaurants", [])
+        hotels = search_result.get("hotels", [])
 
         # 步骤 4：路线规划
-        route_result = await trace("Route Agent",
-            self.route_agent.plan(attractions, {
+        route_result = await trace("TravelPlanner Agent (route)",
+            self.travel_agent.plan_routes(attractions, {
                 "days": days,
-                "budget_limit": budget,
-                "mobility_limitations": preferences.get("health", []),
+                "city": city,
                 "preferred_start_time": "09:00",
-                "transport_preferences": ["地铁", "公交", "出租车"],
-                "replan_context": None
             }))
 
-        # 步骤 5：并行 - 美食 + 酒店
-        food_result, hotel_result = await asyncio.gather(
-            trace("Food Agent", self.food_agent.recommend(city, "", budget / days / 3)),
-            trace("Hotel Agent", self.hotel_agent.search(city, budget / days, ""))
-        )
+        # 步骤 5：餐厅/酒店已包含在 search_result 中，无需单独获取
 
         # 步骤 6：预算验证
-        hotel_info = hotel_result.get("hotels", [{}])[0] if hotel_result.get("hotels") else {}
-        hotel_cost = (hotel_info.get("price_per_night", 0) or 0) * days
+        hotel_info = hotels[0] if hotels else {}
+        hotel_cost = 0  # Amap POI doesn't return prices directly
         plan_summary = {
             "daily_routes": route_result.get("daily_routes", []),
             "hotel": {"name": hotel_info.get("name", ""), "total_cost": hotel_cost},
             "transport_to_city": {"type": "高铁", "cost": 220},  # 模拟：进城交通
             "attractions_total": sum(a.get("ticket_price", 0) for a in attractions),
-            "food_total": len(food_result.get("restaurants", [])) * (budget // days // 3),
+            "food_total": len(restaurants) * (budget // days // 3),
             "transport_within_city": days * 30,  # 估算市内交通
         }
 
@@ -162,17 +150,11 @@ class PlanningAgent:
         # 步骤 7：预算 → 路线调整循环（最多 2 次尝试）
         if not budget_check["within_budget"] and budget_check["alerts"]:
             for attempt in [1, 2]:
-                route_result = await self.route_agent.plan(attractions, {
+                route_result = await self.travel_agent.plan_routes(attractions, {
                     "days": days,
-                    "budget_limit": budget,
-                    "mobility_limitations": preferences.get("health", []),
+                    "city": city,
                     "preferred_start_time": "09:00",
-                    "transport_preferences": ["地铁", "公交", "出租车"],
-                    "replan_context": {
-                        "mode": "replan", "reason": "over_budget",
-                        "current_plan": route_result.get("daily_routes", []),
-                        "budget_limit": budget, "attempt": attempt
-                    }
+                    "replan_context": {"mode": "replan", "reason": "over_budget", "attempt": attempt}
                 })
                 plan_summary["daily_routes"] = route_result.get("daily_routes", [])
                 budget_check = await self.budget_agent.check_plan(budget, plan_summary)
@@ -215,8 +197,8 @@ class PlanningAgent:
             "system_prompt": system_prompt,  # 动态加载的系统提示词
             "daily_routes": route_result.get("daily_routes", []),
             "attractions": attractions,
-            "food": food_result.get("restaurants", []),
-            "hotels": hotel_result.get("hotels", []),
+            "food": restaurants,
+            "hotels": hotels,
             "budget_summary": {
                 "total_budget": budget,
                 "attractions_total": plan_summary["attractions_total"],
