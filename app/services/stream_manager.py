@@ -21,9 +21,7 @@ class StreamManager:
 
     def register_session(self, session_id: str) -> asyncio.Queue:
         """注册一个会话，返回其事件队列。"""
-        if session_id not in self._sessions:
-            self._sessions[session_id] = asyncio.Queue()
-        return self._sessions[session_id]
+        return self._sessions.setdefault(session_id, asyncio.Queue())
 
     def unregister_session(self, session_id: str) -> None:
         """注销一个会话，清理其队列。"""
@@ -138,10 +136,14 @@ class StreamManager:
 
 # 单例
 _stream_manager: Optional[StreamManager] = None
+_stream_manager_lock = asyncio.Lock()
 
 
-def get_stream_manager() -> StreamManager:
+async def get_stream_manager() -> StreamManager:
     global _stream_manager
     if _stream_manager is None:
-        _stream_manager = StreamManager()
+        async with _stream_manager_lock:
+            # Double-check after acquiring lock
+            if _stream_manager is None:
+                _stream_manager = StreamManager()
     return _stream_manager
