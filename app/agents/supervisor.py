@@ -2,7 +2,7 @@
 """规划 Agent（主管）- 协调所有专家 Agent。
 
 这是多 Agent 系统的主要入口点。
-协调流程：偏好 Agent → 并行（景点 + 预算）→ 路线 → 并行（美食 + 酒店）→ 预算检查。
+协调流程：偏好 Agent → 并行（搜索 + 预算）→ 路线 → 预算检查。
 """
 import asyncio
 import re
@@ -58,16 +58,15 @@ def parse_travel_intent(message: str) -> Dict[str, Any]:
 class PlanningAgent:
     """协调所有专家 Agent 的主管 Agent。
 
-    协调流程（见设计文档第 2.3 节）：
+    协调流程：
       1. 解析意图
       2. 偏好 Agent：解析并更新偏好
-      3. 并行：景点 Agent + 预算 Agent
-      4. 路线 Agent
-      5. 并行：美食 Agent + 酒店 Agent
-      6. 预算 Agent：验证
-      7. 如果超预算 → 路线 Agent 重新规划（最多 2 次尝试）
-      8. 生成健康提醒 + 偏好合规说明
-      9. 返回最终方案
+      3. 并行：TravelPlanner（搜索景点/餐厅/酒店）+ 预算 Agent
+      4. TravelPlanner：规划每日路线
+      5. 预算 Agent：验证
+      6. 如果超预算 → TravelPlanner 重新规划（最多 2 次尝试）
+      7. 生成健康提醒 + 偏好合规说明
+      8. 返回最终方案
     """
 
     def __init__(self):
