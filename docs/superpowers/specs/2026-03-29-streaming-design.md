@@ -158,8 +158,18 @@ const startStreaming = (sessionId, message) => {
   const es = new EventSource(`/api/chat/stream?session_id=${sessionId}`)
   eventSourceRef.current = es
 
+  // 3. 注册所有事件处理器
   es.addEventListener('agent_switch', (e) => {
     updateMessage(tempMessage.id, { agent: JSON.parse(e.data).agent })
+  })
+
+  es.addEventListener('model_switch', (e) => {
+    updateMessage(tempMessage.id, { model: JSON.parse(e.data).model })
+  })
+
+  es.addEventListener('iteration', (e) => {
+    const {iteration, max_iterations} = JSON.parse(e.data)
+    updateMessage(tempMessage.id, { iteration, max_iterations })
   })
 
   es.addEventListener('tool_start', (e) => {
@@ -172,9 +182,21 @@ const startStreaming = (sessionId, message) => {
     updateToolCall(tempMessage.id, tool, {status: 'done', result, duration_ms})
   })
 
+  es.addEventListener('tool_error', (e) => {
+    const {tool, error} = JSON.parse(e.data)
+    updateToolCall(tempMessage.id, tool, {status: 'error', error})
+  })
+
+  es.addEventListener('token_usage', (e) => {
+    updateMessage(tempMessage.id, { tokenUsage: JSON.parse(e.data) })
+  })
+
+  es.addEventListener('reasoning_step', (e) => {
+    appendReasoningStep(tempMessage.id, JSON.parse(e.data).step)
+  })
+
   es.addEventListener('content_chunk', (e) => {
     const {content} = JSON.parse(e.data)
-    // 打字机效果：累积到 content
     typewriterAppend(tempMessage.id, content)
   })
 
@@ -185,10 +207,23 @@ const startStreaming = (sessionId, message) => {
   })
 
   es.addEventListener('error', (e) => {
-    handleStreamError(tempMessage.id, e.data)
+    handleStreamError(tempMessage.id, JSON.parse(e.data).error)
     es.close()
   })
+
+  es.addEventListener('ping', () => {})  // 心跳，无需处理
 }
+```
+
+**辅助函数（需在 Stage.jsx 中实现）：**
+- `appendMessage(msg)` — 添加消息到 session.messages
+- `updateMessage(id, patch)` — 根据 id 更新消息字段
+- `appendToolCall(msgId, toolCall)` — 追加工具调用到消息的 toolCalls 数组
+- `updateToolCall(msgId, toolName, patch)` — 更新指定工具调用的状态
+- `appendReasoningStep(msgId, step)` — 追加推理步骤
+- `typewriterAppend(msgId, chunk)` — 打字机效果：累积 content
+- `finalizeMessage(id, answer)` — 流式完成：设置完整 answer，streaming=false
+- `handleStreamError(id, error)` — 处理错误状态
 ```
 
 ### 4.5 改造文件
