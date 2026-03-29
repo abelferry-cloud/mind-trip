@@ -1,6 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import Editor from '@monaco-editor/react'
 
+const ALLOWED_FILES = [
+  'AGENTS.md',
+  'BOOTSTRAP.md',
+  'IDENTITY.md',
+  'SOUL.md',
+  'USER.md',
+  'MEMORY.md'
+]
+
 const Inspector = ({ file, onFileChange, style }) => {
   const [content, setContent] = useState('')
   const [isModified, setIsModified] = useState(false)
@@ -32,7 +41,7 @@ const Inspector = ({ file, onFileChange, style }) => {
         const res = await fetch('/api/workspace/files')
         if (res.ok) {
           const data = await res.json()
-          setFiles(data)
+          setFiles(data.filter(f => ALLOWED_FILES.includes(f.name)))
         }
       } catch (e) { /* ignore */ }
     }
@@ -104,6 +113,7 @@ const Inspector = ({ file, onFileChange, style }) => {
             key={f.name}
             className={`inspector-tab ${file === f.name ? 'active' : ''}`}
             onClick={() => onFileChange(f.name)}
+            title={f.name}
           >
             {f.name}
           </button>
@@ -169,6 +179,14 @@ const CodeIcon = () => (
 
 const DotIcon = ({ style }) => (
   <span style={{ ...style, width: 6, height: 6, borderRadius: '50%', display: 'inline-block' }} />
+)
+
+const PanelLeftCloseIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+    <line x1="9" y1="3" x2="9" y2="21" />
+    <polyline points="15 8 10 12 15 16" />
+  </svg>
 )
 
 export default Inspector
