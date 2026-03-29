@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import Editor from '@monaco-editor/react'
+import markdownIt from 'markdown-it'
 
 const ALLOWED_FILES = [
   'AGENTS.md',
@@ -12,11 +12,15 @@ const ALLOWED_FILES = [
 
 const Inspector = ({ file, onFileChange, style }) => {
   const [content, setContent] = useState('')
-  const [isModified, setIsModified] = useState(false)
-  const [isSaving, setIsSaving] = useState(false)
   const [files, setFiles] = useState([])
   const [currentModifiedAt, setCurrentModifiedAt] = useState(null)
   const POLL_INTERVAL = 3000
+
+  const md = markdownIt({
+    html: false,
+    linkify: true,
+    typographer: true
+  })
 
   const loadFileContent = useCallback(async (fileName) => {
     try {
@@ -28,10 +32,8 @@ const Inspector = ({ file, onFileChange, style }) => {
       } else {
         setContent('')
       }
-      setIsModified(false)
     } catch (error) {
       setContent('')
-      setIsModified(false)
     }
   }, [])
 
@@ -73,31 +75,6 @@ const Inspector = ({ file, onFileChange, style }) => {
     }
   }, [file, loadFileContent])
 
-  const handleEditorChange = (value) => {
-    setContent(value)
-    setIsModified(true)
-  }
-
-  const handleSave = async () => {
-    setIsSaving(true)
-    try {
-      const res = await fetch(`/api/workspace/files/${file}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: file, content, modified_at: currentModifiedAt })
-      })
-      if (res.ok) {
-        const data = await res.json()
-        setCurrentModifiedAt(data.modified_at)
-        setIsModified(false)
-      }
-    } catch (error) {
-      console.error('Failed to save:', error)
-    } finally {
-      setIsSaving(false)
-    }
-  }
-
   return (
     <aside className="inspector" style={style}>
       <div className="inspector-header">
@@ -115,56 +92,19 @@ const Inspector = ({ file, onFileChange, style }) => {
             onClick={() => onFileChange(f.name)}
             title={f.name}
           >
-            {f.name}
+            <FileIcon fileName={f.name} isActive={file === f.name} />
+            <span className="tab-label">{f.name}</span>
           </button>
         ))}
       </div>
 
-      <div className="inspector-content">
-        <Editor
-          height="100%"
-          language="markdown"
-          theme="vs"
-          value={content}
-          onChange={handleEditorChange}
-          options={{
-            minimap: { enabled: false },
-            fontSize: 13,
-            fontFamily: 'JetBrains Mono, Fira Code, monospace',
-            lineNumbers: 'on',
-            wordWrap: 'on',
-            scrollBeyondLastLine: false,
-            automaticLayout: true,
-            padding: { top: 12 },
-            renderLineHighlight: 'line',
-            cursorBlinking: 'smooth',
-            smoothScrolling: true,
-          }}
-        />
-      </div>
+      <div
+        className="inspector-content"
+        dangerouslySetInnerHTML={{ __html: md.render(content) }}
+      />
 
       <div className="inspector-footer">
-        <div className="inspector-status">
-          {isModified ? (
-            <>
-              <DotIcon style={{ color: 'var(--warning)' }} />
-              <span>已修改</span>
-            </>
-          ) : (
-            <>
-              <DotIcon style={{ color: 'var(--success)' }} />
-              <span>已同步</span>
-            </>
-          )}
-        </div>
-        <button
-          className="stage-action-btn"
-          onClick={handleSave}
-          disabled={!isModified || isSaving}
-          style={{ opacity: isModified ? 1 : 0.5 }}
-        >
-          {isSaving ? '保存中...' : '保存'}
-        </button>
+        <span>Markdown · UTF-8</span>
       </div>
     </aside>
   )
@@ -177,16 +117,23 @@ const CodeIcon = () => (
   </svg>
 )
 
-const DotIcon = ({ style }) => (
-  <span style={{ ...style, width: 6, height: 6, borderRadius: '50%', display: 'inline-block' }} />
-)
-
-const PanelLeftCloseIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-    <line x1="9" y1="3" x2="9" y2="21" />
-    <polyline points="15 8 10 12 15 16" />
-  </svg>
-)
+const FileIcon = ({ fileName, isActive }) => {
+  const ext = fileName.split('.').pop()
+  const color = isActive ? 'var(--orange)' : 'currentColor'
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14, flexShrink: 0 }}>
+      {ext === 'md' ? (
+        <>
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <polyline points="14 2 14 8 20 8" />
+          <line x1="16" y1="13" x2="8" y2="13" />
+          <line x1="16" y1="17" x2="8" y2="17" />
+        </>
+      ) : (
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      )}
+    </svg>
+  )
+}
 
 export default Inspector
