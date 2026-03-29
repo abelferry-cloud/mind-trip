@@ -46,7 +46,7 @@ async def get_workspace_file(filename: str):
         raise HTTPException(status_code=404, detail="File not found")
     content = file_path.read_text(encoding="utf-8")
     mtime = datetime.fromtimestamp(file_path.stat().st_mtime, tz=None)
-    return FileContent(name=filename, content=content, modified_at=mtime)
+    return FileContent(name=filename, content=content, modified_at=mtime.isoformat())
 
 
 @router.put("/files/{filename}")
