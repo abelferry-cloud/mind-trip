@@ -1,42 +1,17 @@
-# app/tools/food_tools.py
-"""美食工具 - 推荐本地餐厅。
-模拟数据集用于演示。
-"""
+"""美食工具 - 委托给 travel_skills"""
 from typing import List, Dict, Any
-
-_MOCK_RESTAURANTS = {
-    "杭州": [
-        {"name": "外婆家", "cuisine": "浙菜", "price_level": "¥", "location": "西湖区",
-         "signature_dishes": ["东坡肉", "叫化鸡", "西湖醋鱼"], "avg_budget": 80},
-        {"name": "知味观", "cuisine": "浙菜/小吃", "price_level": "¥¥", "location": "西湖区",
-         "signature_dishes": ["小笼包", "片儿川"], "avg_budget": 120},
-        {"name": "楼外楼", "cuisine": "浙菜", "price_level": "¥¥¥", "location": "西湖",
-         "signature_dishes": ["东坡肉", "宋嫂鱼羹"], "avg_budget": 250},
-    ],
-    "成都": [
-        {"name": "玉林串串香", "cuisine": "川菜/火锅", "price_level": "¥", "location": "武侯区",
-         "signature_dishes": ["串串", "冒菜"], "avg_budget": 60},
-        {"name": "蜀大侠火锅", "cuisine": "川菜/火锅", "price_level": "¥¥", "location": "锦江区",
-         "signature_dishes": ["牛油锅底", "鲜毛肚"], "avg_budget": 120},
-        {"name": "陈麻婆豆腐", "cuisine": "川菜", "price_level": "¥¥", "location": "青羊区",
-         "signature_dishes": ["麻婆豆腐", "夫妻肺片"], "avg_budget": 100},
-    ],
-}
+from app.tools.travel_skills import search_restaurants
 
 async def recommend_restaurants(city: str, style: str = "", budget_per_meal: float = 100.0) -> List[Dict[str, Any]]:
-    """推荐城市的餐厅。
-
-    Args:
-        city: 城市名
-        style: 菜系偏好（如"浙菜", 空=全部）
-        budget_per_meal: 每餐预算（CNY）
-
-    Returns:
-        餐厅列表
-    """
-    restaurants = _MOCK_RESTAURANTS.get(city, [])
-    if style:
-        restaurants = [r for r in restaurants if style in r["cuisine"] or not style]
-    # 按预算筛选
-    restaurants = [r for r in restaurants if r["avg_budget"] <= budget_per_meal * 1.5]
-    return restaurants
+    """推荐餐厅（委托给 travel_skills）"""
+    result = search_restaurants.invoke({"city": city, "cuisine": style})
+    return [
+        {
+            "name": r.get("name", ""),
+            "cuisine": r.get("type", ""),
+            "price_level": "¥",
+            "location": r.get("address", ""),
+            "avg_budget": budget_per_meal,
+        }
+        for r in result
+    ]
