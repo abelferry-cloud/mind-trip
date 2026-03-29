@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     # 数据库
     database_url: str = "data/memory.db"
 
+    # 外部 API
+    tavily_api_key: str = ""
+    amap_api_key: str = ""
+
     # 应用配置
     app_host: str = "0.0.0.0"
     app_port: int = 8000
@@ -36,15 +40,15 @@ class Settings(BaseSettings):
     def model_chain_list(self) -> List[str]:
         return [m.strip() for m in self.model_chain.split(",")]
 
-    # Memory
-    memory_dir: str = "app/workspace/memory"
-    memory_file: str = "app/workspace/MEMORY.md"
+    # 记忆（统一放在 app/memory/ 下）
+    memory_dir: str = "app/memory"
+    memory_file: str = "app/memory/MEMORY.md"
 
-    # Ollama (for embedding)
+    # Ollama（用于嵌入）
     ollama_base_url: str = "http://localhost:11434"
     embedding_model: str = "qwen3-embedding:0.6b"
 
-    # RAG settings
+    # RAG 设置
     rag_top_k: int = 5
     rag_bm25_k1: float = 1.5
     rag_bm25_b: float = 0.75
