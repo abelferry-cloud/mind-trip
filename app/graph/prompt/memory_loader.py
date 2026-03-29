@@ -74,13 +74,15 @@ class MemoryLoader:
             memory_part = parts[-1]
             header_end = memory_part.index("\n\n") + 2 if "\n\n" in memory_part else 0
             memory_body = memory_part[header_end:]
-            truncated_body = memory_body[: max_chars // 2] + "\n\n[... MEMORY.md 内容已截断]"
+            sentinel = "\n\n[... MEMORY.md 内容已截断]"
+            truncated_body = memory_body[: max_chars // 2 - len(sentinel)] + sentinel
             parts[-1] = memory_part[:header_end] + truncated_body
             combined = "\n\n".join(parts)
             if len(combined) <= max_chars:
                 return combined
 
         # 阶段 2: 较旧日志截断（从头开始，逐条移除直到符合预算）
+        # assumption: parts[0] is the oldest daily log entry (today+yesterday ordering from load())
         result_parts = list(parts)
         while len(result_parts) > 1 and len("\n\n".join(result_parts)) > max_chars:
             result_parts.pop(0)  # 移除最旧的日志
