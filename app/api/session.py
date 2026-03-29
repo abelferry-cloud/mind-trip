@@ -1,8 +1,8 @@
 # app/api/session.py
 """会话管理 API - 基于 Markdown daily logs 的会话接口。
 
-Reference: OpenClaw's memory/YYYY-MM-DD.md session tracking.
-Session list derived from scanning memory/ files for ## Session: blocks.
+参考：OpenClaw 的 memory/YYYY-MM-DD.md 会话追踪格式。
+会话列表通过扫描 memory/ 文件中的 ## Session: 块生成。
 """
 import uuid
 from datetime import datetime, timezone
@@ -47,7 +47,7 @@ _daily_mgr: DailyLogManager = get_daily_log_manager()
 
 
 def _scan_sessions_from_daily_logs() -> List[SessionInfo]:
-    """Scan all memory/*.md files and extract unique sessions."""
+    """扫描所有 memory/*.md 文件并提取唯一的会话。"""
     sessions = {}
     memory_dir = Path(__file__).parent.parent / "workspace" / "memory"
     if not memory_dir.exists():
@@ -58,7 +58,7 @@ def _scan_sessions_from_daily_logs() -> List[SessionInfo]:
         if f.name.startswith("."):
             continue
         content = f.read_text(encoding="utf-8")
-        # Find all ## Session: {id} blocks
+        # 查找所有 ## Session: {id} 块
         for match in re.finditer(r"## Session: (\S+)(?:\s+\[DELETED\])?", content):
             session_id = match.group(1)
             if session_id not in sessions:
@@ -89,7 +89,7 @@ async def get_session(session_id: str):
     for s in sessions:
         if s.session_id == session_id:
             return s
-    # Return empty info for new session
+    # 返回新会话的空信息
     return SessionInfo(session_id=session_id, history_count=0, has_memory=False)
 
 
@@ -102,7 +102,7 @@ async def get_session_messages(session_id: str):
 
     messages = []
     import re
-    # Parse each [HH:MM:SS] Human: / AI: block
+    # 解析每个 [HH:MM:SS] Human: / AI: 块
     pattern = r"\[(\d{2}:\d{2}:\d{2})\]\nHuman: (.+?)\nAI: (.+?)(?=\n\[|\Z)"
     for i, match in enumerate(re.finditer(pattern, session_content, re.DOTALL)):
         ts = match.group(1)
@@ -121,7 +121,7 @@ async def list_sessions():
 @router.delete("/{session_id}", response_model=DeleteSessionResponse)
 async def delete_session(session_id: str):
     """删除会话（软删除：标记为 deleted）。"""
-    # Append deletion marker to today's daily log
+    # 将删除标记追加到今日日志
     now = datetime.now()
     date_str = now.strftime("%Y-%m-%d")
     marker = f"\n## Session: {session_id} [DELETED]\n"
@@ -131,7 +131,7 @@ async def delete_session(session_id: str):
         with open(day_file, "a", encoding="utf-8") as f:
             f.write(marker)
 
-    # Update .deleted index
+    # 更新 .deleted 索引
     deleted_index = memory_dir / ".deleted"
     import json
     deleted_data = {}

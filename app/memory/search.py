@@ -1,11 +1,11 @@
 # app/memory/search.py
-"""MemorySearchManager - Hybrid RAG: vector search (Ollama) + BM25 keyword search.
+"""MemorySearchManager - 混合 RAG：向量搜索（Ollama）+ BM25 关键词搜索。
 
-Reference: OpenClaw's memory-search plugin with hybrid retrieval:
-- Vector search: semantic similarity via Ollama qwen3-embedding:0.6b
-- BM25: keyword-based relevance scoring
-- RRF fusion: Reciprocal Rank Fusion to combine rankings
-- Temporal decay: newer documents get higher scores
+参考：OpenClaw 的记忆搜索插件与混合检索：
+- 向量搜索：通过 Ollama qwen3-embedding:0.6b 进行语义相似度匹配
+- BM25：基于关键词的相关性评分
+- RRF 融合：倒数排名融合以组合排名
+- 时间衰减：较新的文档获得更高分数
 """
 import aiohttp
 import asyncio
@@ -22,7 +22,7 @@ from app.config import get_settings
 
 @dataclass
 class SearchResult:
-    """A single search result."""
+    """单个搜索结果。"""
     chunk: str
     score: float
     doc_path: str
@@ -30,10 +30,10 @@ class SearchResult:
 
 
 class MemorySearchManager:
-    """Hybrid RAG: vector + BM25 with RRF fusion and temporal decay.
+    """混合 RAG：向量 + BM25，RRF 融合和时间衰减。
 
-    Uses Ollama qwen3-embedding:0.6b for semantic embeddings.
-    Falls back to BM25-only if Ollama is unavailable.
+    使用 Ollama qwen3-embedding:0.6b 进行语义嵌入。
+    如果 Ollama 不可用则回退到仅 BM25。
     """
 
     def __init__(
@@ -58,9 +58,9 @@ class MemorySearchManager:
         self._total_docs = 0
 
     async def embed(self, text: str) -> Optional[List[float]]:
-        """Get embedding via Ollama qwen3-embedding:0.6b.
+        """通过 Ollama qwen3-embedding:0.6b 获取嵌入。
 
-        Returns None if Ollama is unavailable.
+        如果 Ollama 不可用则返回 None。
         """
         try:
             async with aiohttp.ClientSession() as session:
@@ -78,7 +78,7 @@ class MemorySearchManager:
             return None
 
     async def search(self, query: str, top_k: int = 5) -> List[SearchResult]:
-        """Hybrid search: BM25 + vector similarity with RRF fusion."""
+        """混合搜索：BM25 + 向量相似度，RRF 融合。"""
         docs = self._load_all_docs()
         if not docs:
             return []

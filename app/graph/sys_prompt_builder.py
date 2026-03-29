@@ -19,39 +19,6 @@ def get_supervisor_loader(
     )
 
 
-def get_attractions_loader(
-    mode: Literal["main", "shared"] = "main",
-    context: Optional[Dict[str, Any]] = None,
-) -> PromptComposer:
-    return PromptComposer(
-        agent_name="Attractions",
-        agent_type="Attractions Specialist — 搜索和推荐旅行景点",
-        mode=mode,
-    )
-
-
-def get_food_loader(
-    mode: Literal["main", "shared"] = "main",
-    context: Optional[Dict[str, Any]] = None,
-) -> PromptComposer:
-    return PromptComposer(
-        agent_name="Food",
-        agent_type="Food Specialist — 推荐当地美食和餐厅",
-        mode=mode,
-    )
-
-
-def get_hotel_loader(
-    mode: Literal["main", "shared"] = "main",
-    context: Optional[Dict[str, Any]] = None,
-) -> PromptComposer:
-    return PromptComposer(
-        agent_name="Hotel",
-        agent_type="Hotel Specialist — 搜索和推荐住宿",
-        mode=mode,
-    )
-
-
 def get_budget_loader(
     mode: Literal["main", "shared"] = "main",
     context: Optional[Dict[str, Any]] = None,
@@ -59,17 +26,6 @@ def get_budget_loader(
     return PromptComposer(
         agent_name="Budget",
         agent_type="Budget Specialist — 计算和验证旅行预算",
-        mode=mode,
-    )
-
-
-def get_route_loader(
-    mode: Literal["main", "shared"] = "main",
-    context: Optional[Dict[str, Any]] = None,
-) -> PromptComposer:
-    return PromptComposer(
-        agent_name="Route",
-        agent_type="Route Planner — 规划每日行程路线",
         mode=mode,
     )
 

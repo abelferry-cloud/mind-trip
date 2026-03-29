@@ -42,7 +42,7 @@ class SessionMemoryManager:
         return cls._instance
 
     def _create_memory(self) -> ConversationBufferMemory:
-        """Create a new ConversationBufferMemory instance with default keys."""
+        """创建新的 ConversationBufferMemory 实例，使用默认键。"""
         return ConversationBufferMemory(
             return_messages=True,
             output_key=DEFAULT_OUTPUT_KEY,

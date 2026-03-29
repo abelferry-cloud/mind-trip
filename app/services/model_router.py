@@ -47,8 +47,8 @@ class ModelRouter:
                 else:
                     continue  # switch to next model
 
-        # All failed
-        raise Exception(f"All models failed. Last error: {last_error}")
+        # 全部失败
+        raise Exception(f"所有模型都失败。最后错误：{last_error}")
 
     def _is_retryable(self, error: Exception) -> bool:
         err_str = str(error)

@@ -47,21 +47,21 @@ class PreferenceAgent:
         """
         updates = []
 
-        # Health conditions
+        # 健康状况
         health_keywords = ["心脏病", "糖尿病", "高血压", "哮喘", "过敏", "癫痫"]
         for kw in health_keywords:
             if kw in message:
                 await self.update_preference(user_id, "health", [kw])
                 updates.append(kw)
 
-        # Hardships
+        # 困境
         hardship_keywords = ["硬座", "红眼航班", "转机", "步行", "爬山"]
         for kw in hardship_keywords:
             if kw in message:
                 await self.update_preference(user_id, "hardships", [kw])
                 updates.append(kw)
 
-        # Spending style
+        # 消费风格
         if "节省" in message or "省钱" in message:
             await self.update_preference(user_id, "spending_style", "节省")
             updates.append("spending_style=节省")
@@ -72,7 +72,7 @@ class PreferenceAgent:
         return {"updated": updates}
 
 
-# Singleton factory
+# 单例工厂
 _memory_mgr_instance: MarkdownMemoryManager | None = None
 
 

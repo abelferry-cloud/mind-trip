@@ -1,6 +1,6 @@
-"""DailyLogManager - Append-only daily session logs at memory/YYYY-MM-DD.md
+"""DailyLogManager - 每日日志管理器，在 memory/YYYY-MM-DD.md 追加会话日志。
 
-Reference: OpenClaw memory/YYYY-MM-DD.md daily session log format.
+参考：OpenClaw memory/YYYY-MM-DD.md 每日会话日志格式。
 """
 import re
 from datetime import datetime, timedelta, timezone
@@ -13,7 +13,7 @@ _daily_log_manager: Optional["DailyLogManager"] = None
 
 
 def get_daily_log_manager() -> "DailyLogManager":
-    """Get the singleton DailyLogManager instance."""
+    """获取单例 DailyLogManager 实例。"""
     global _daily_log_manager
     if _daily_log_manager is None:
         _daily_log_manager = DailyLogManager()
@@ -21,9 +21,9 @@ def get_daily_log_manager() -> "DailyLogManager":
 
 
 class DailyLogManager:
-    """Append-only daily session logs.
+    """追加式每日会话日志。
 
-    File format (per memory/YYYY-MM-DD.md):
+    文件格式（每个 logs/YYYY-MM-DD.md）:
         # 2026-03-28
 
         ## Session: abc123
@@ -38,9 +38,9 @@ class DailyLogManager:
 
     def __init__(self, memory_dir: Optional[str] = None):
         if memory_dir is None:
-            memory_dir = Path(__file__).parent.parent / "workspace" / "memory"
+            memory_dir = Path(__file__).parent / "logs"
         else:
-            memory_dir = Path(memory_dir)
+            memory_dir = Path(memory_dir) / "logs"
         self.memory_dir = memory_dir
         self.memory_dir.mkdir(parents=True, exist_ok=True)
 
@@ -57,10 +57,10 @@ class DailyLogManager:
         human_message: str,
         ai_message: str,
     ) -> None:
-        """Append a human/AI message pair to today's daily log.
+        """将人类/AI 消息对追加到今日日志。
 
-        Uses file locking for concurrent safety.
-        Creates session block if first message from this session today.
+        使用文件锁保证并发安全。
+        如果是该会话今日第一条消息则创建会话块。
         """
         now = datetime.now()
         date_file = self._get_date_file(now)
@@ -84,7 +84,7 @@ class DailyLogManager:
                 f.write(f"AI: {ai_message}\n\n")
 
     def read_today_and_yesterday(self) -> str:
-        """Read today's and yesterday's daily logs concatenated."""
+        """读取今日和昨日的日志（拼接）。"""
         now = datetime.now()
         yesterday = now - timedelta(days=1)
 
@@ -98,10 +98,10 @@ class DailyLogManager:
         return result
 
     def read_session(self, session_id: str) -> str:
-        """Read all entries for a specific session across daily logs.
+        """读取特定会话的所有条目（跨日志文件）。
 
-        Scans all memory/*.md files in date order (oldest first).
-        Returns empty string if session not found.
+        按日期顺序扫描所有 logs/*.md 文件（从旧到新）。
+        如果未找到会话则返回空字符串。
         """
         if not self.memory_dir.exists():
             return ""

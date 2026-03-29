@@ -58,7 +58,7 @@ class ChatService:
         system_prompt = prompt_result["system_prompt"]
         workspace_loaded_at = prompt_result["workspace_loaded_at"]
 
-        # 2. Load session memory (today + yesterday + MEMORY.md)
+        # 2. 加载会话记忆（今日 + 昨日 + MEMORY.md）
         session_memory = await self._injector.load_session_memory(
             user_id=user_id,
             session_id=session_id,

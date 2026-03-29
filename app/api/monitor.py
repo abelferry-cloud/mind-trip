@@ -12,16 +12,16 @@ router = APIRouter(prefix="/api", tags=["monitor"])
 async def health():
     """健康检查端点。
 
-    Checks:
-    - LLM availability (via model router)
-    - Memory subsystem: workspace and memory/ directories exist
+    检查项：
+    - LLM 可用性（通过模型路由）
+    - 记忆子系统：workspace 和 memory/ 目录存在
     """
     from app.services.model_router import get_model_router
     router_instance = get_model_router()
     llm_primary_available = router_instance.is_primary_available()
     llm_available = llm_primary_available
 
-    # Check Markdown memory directories exist
+    # 检查 Markdown 记忆目录是否存在
     base_dir = Path(__file__).parent.parent
     workspace_exists = (base_dir / "workspace").is_dir()
     memory_dir_exists = (base_dir / "workspace" / "memory").is_dir()

@@ -1,8 +1,8 @@
 # app/memory/markdown_memory.py
-"""MarkdownMemoryManager - Manages MEMORY.md as the curated long-term memory file.
+"""MarkdownMemoryManager - 管理 MEMORY.md 作为精选的长期记忆文件。
 
-Reference: OpenClaw's "Markdown is Source of Truth" — files are the single source
-of truth, not a database. The model only "remembers" what gets written to disk.
+参考：OpenClaw 的 "Markdown is Source of Truth" — 文件是唯一真相源，
+而非数据库。模型只 "记住" 写入磁盘的内容。
 """
 import re
 from pathlib import Path
@@ -41,11 +41,11 @@ _Last updated by AI after session_
 
 
 class MarkdownMemoryManager:
-    """Manages MEMORY.md - the curated long-term memory file.
+    """管理 MEMORY.md — 精选的长期记忆文件。
 
-    Implements atomic writes using rename-to-write pattern:
-    1. Write to temp file
-    2. Rename temp to target (atomic on POSIX)
+    实现原子写入：使用重命名写入模式：
+    1. 写入临时文件
+    2. 重命名临时文件到目标（在 POSIX 上原子）
     """
 
     def __init__(self, memory_path: Optional[str] = None):
@@ -56,7 +56,7 @@ class MarkdownMemoryManager:
         self.memory_path = memory_path
 
     def _ensure_file_exists(self) -> None:
-        """Create MEMORY.md from template if it doesn't exist."""
+        """如果不存在则从模板创建 MEMORY.md。"""
         if not self.memory_path.exists():
             from datetime import datetime
             content = MEMORY_TEMPLATE.format(date=datetime.now().strftime("%Y-%m-%d"))
@@ -64,16 +64,16 @@ class MarkdownMemoryManager:
             self.memory_path.write_text(content, encoding="utf-8")
 
     def get_memory(self) -> str:
-        """Read and return MEMORY.md content.
+        """读取并返回 MEMORY.md 内容。
 
-        Returns empty string if file doesn't exist.
+        如果文件不存在则返回空字符串。
         """
         if not self.memory_path.exists():
             return ""
         return self.memory_path.read_text(encoding="utf-8")
 
     async def update_user_profile(self, user_id: str, profile: Dict[str, Any]) -> None:
-        """Update the User Profile section in MEMORY.md."""
+        """更新 MEMORY.md 中的用户档案部分。"""
         self._ensure_file_exists()
         content = self.memory_path.read_text(encoding="utf-8")
 
@@ -101,7 +101,7 @@ class MarkdownMemoryManager:
         self._atomic_write(content)
 
     async def update_preference(self, user_id: str, category: str, value: Any) -> None:
-        """Update a specific preference category in MEMORY.md."""
+        """更新 MEMORY.md 中的特定偏好类别。"""
         self._ensure_file_exists()
         content = self.memory_path.read_text(encoding="utf-8")
 
@@ -149,7 +149,7 @@ class MarkdownMemoryManager:
         self._atomic_write(content)
 
     async def append_decision(self, session_id: str, decision: str) -> None:
-        """Append a key decision under '## Key Decisions' section."""
+        """在 '## Key Decisions' 部分下追加关键决策。"""
         self._ensure_file_exists()
         content = self.memory_path.read_text(encoding="utf-8")
 
@@ -170,7 +170,7 @@ class MarkdownMemoryManager:
         self._atomic_write(content)
 
     def _atomic_write(self, content: str) -> None:
-        """Atomic write: write to temp file, then rename to target."""
+        """原子写入：写入临时文件，然后重命名到目标。"""
         temp_file = self.memory_path.with_suffix(".md.tmp")
         temp_file.write_text(content, encoding="utf-8")
         temp_file.replace(self.memory_path)
@@ -181,7 +181,7 @@ _memory_mgr: Optional["MarkdownMemoryManager"] = None
 
 
 def get_markdown_memory_manager() -> "MarkdownMemoryManager":
-    """Get the global MarkdownMemoryManager singleton instance."""
+    """获取全局 MarkdownMemoryManager 单例实例。"""
     global _memory_mgr
     if _memory_mgr is None:
         from app.config import get_settings

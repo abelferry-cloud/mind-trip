@@ -1,5 +1,5 @@
 # app/memory/__init__.py
-"""Memory subsystem — Markdown-based (OpenClaw architecture)."""
+"""Memory 子系统 — 基于 Markdown（OpenClaw 架构）。"""
 
 from app.memory.markdown_memory import (
     MarkdownMemoryManager,
