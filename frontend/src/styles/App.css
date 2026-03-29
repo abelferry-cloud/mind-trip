@@ -515,12 +515,12 @@
 
 /* Inspector Styles */
 .inspector {
+  display: flex;
+  flex-direction: row;
   width: var(--inspector-width);
   height: 100%;
   background: var(--bg-primary);
   border-left: 1px solid var(--border-subtle);
-  display: flex;
-  flex-direction: column;
   flex-shrink: 0;
 }
 
@@ -549,20 +549,35 @@
 }
 
 .inspector-tabs {
+  width: 40px;
   display: flex;
+  flex-direction: column;
   gap: 4px;
-  padding: 8px 16px;
-  border-bottom: 1px solid var(--border-subtle);
+  padding: 8px 4px;
   background: var(--bg-secondary);
+  border-right: 1px solid var(--border-subtle);
+  overflow-y: auto;
+  flex-shrink: 0;
 }
 
 .inspector-tab {
-  padding: 6px 12px;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  width: 36px;
+  min-height: 72px;
+  padding: 8px 4px;
   border-radius: var(--radius-sm);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 500;
   color: var(--text-muted);
   transition: all var(--transition-fast);
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+  border: none;
+  background: transparent;
 }
 
 .inspector-tab:hover {
@@ -573,11 +588,14 @@
 .inspector-tab.active {
   color: var(--accent-primary);
   background: var(--accent-muted);
+  border-left: 2px solid var(--accent-primary);
 }
 
 .inspector-content {
   flex: 1;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .inspector-footer {
