@@ -14,7 +14,9 @@ const Stage = ({
   inputHeight,
   onResizeStart,
   resizing,
-  style
+  style,
+  onToggleSidebar,
+  sidebarVisible
 }) => {
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -138,6 +140,14 @@ const Stage = ({
           >
             <FileIcon />
             <span>{inspectorFile}</span>
+          </button>
+          <button
+            className="stage-action-btn"
+            onClick={onToggleSidebar}
+            title={sidebarVisible ? '隐藏侧边栏' : '显示侧边栏'}
+          >
+            {sidebarVisible ? <PanelLeftCloseIcon /> : <PanelLeftOpenIcon />}
+            <span>{sidebarVisible ? '隐藏' : '显示'}</span>
           </button>
         </div>
       </header>
@@ -304,6 +314,22 @@ const FileIcon = () => (
     <line x1="16" y1="13" x2="8" y2="13" />
     <line x1="16" y1="17" x2="8" y2="17" />
     <polyline points="10 9 9 9 8 9" />
+  </svg>
+)
+
+const PanelLeftCloseIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+    <line x1="9" y1="3" x2="9" y2="21" />
+    <polyline points="15 16 11 12 15 8" />
+  </svg>
+)
+
+const PanelLeftOpenIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+    <line x1="9" y1="3" x2="9" y2="21" />
+    <polyline points="9 8 14 12 9 16" />
   </svg>
 )
 
