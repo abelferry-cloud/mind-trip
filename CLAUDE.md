@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Smart Travel Journal** is a Multi-Agent Trip Planning System using FastAPI + LangChain. It coordinates 7 specialized agents (Supervisor + Specialists) to generate complete travel itineraries with budget control, health alerts, and preference memory.
+**Smart Travel Journal** is a Multi-Agent Trip Planning System using FastAPI + LangChain. It coordinates 4 specialized agents (Supervisor + 3 Specialists) to generate complete travel itineraries with budget control, health alerts, and preference memory.
 
 ## Commands
 
@@ -45,110 +45,157 @@ OpenClaw emphasizes **lightweight** and **high transparency**. If you are unfami
 
 ## Architecture
 
-### Multi-Agent System (Star Topology)
+### Multi-Agent System (4-Agent Architecture)
+
+项目采用精简的4-Agent架构（已从原来的7-Agent重构）：
 
 ```
-PlanningAgent (Supervisor)
-├── AttractionsAgent
-├── RouteAgent
-├── BudgetAgent
-├── FoodAgent
-├── HotelAgent
-└── PreferenceAgent
+PlanningAgent (Supervisor/主管)
+├── PreferenceAgent (偏好管理)
+├── BudgetAgent (预算计算与验证)
+└── TravelPlannerAgent (旅行规划 - 整合版)
 ```
+
+**Agent 职责说明：**
+
+| Agent | 职责 | 特点 |
+|-------|------|------|
+| **PlanningAgent** | 主管协调，解析意图，编排执行流程 | 唯一入口，管理整个规划生命周期 |
+| **PreferenceAgent** | 解析并更新用户偏好到长期记忆 | 唯一可写入 Markdown 记忆的 Agent |
+| **BudgetAgent** | 预算计算、验证、超预算检测 | 支持重新规划触发 |
+| **TravelPlannerAgent** | 整合搜索+规划：景点、餐厅、酒店、路线 | 替代原有多个专项 Agent |
 
 **Agent Coordination Flow:**
-1. PlanningAgent parses user intent (city, days, budget, preferences)
-2. PreferenceAgent updates long-term memory (only agent that writes to SQLite)
-3. Parallel: AttractionsAgent + BudgetAgent
-4. RouteAgent generates daily itinerary
-5. Parallel: FoodAgent + HotelAgent
-6. BudgetAgent validates → triggers RouteAgent replan if over budget (max 2 retries)
-7. Generate health alerts + preference compliance notes
-8. Return complete plan
+1. PlanningAgent 解析用户意图（城市、天数、预算、偏好）
+2. PreferenceAgent 更新长期记忆（唯一写入 MEMORY.md 的 Agent）
+3. 并行执行：TravelPlannerAgent（搜索景点/餐厅/酒店）+ BudgetAgent（计算预算）
+4. TravelPlannerAgent 规划每日路线（使用高德地图 API）
+5. BudgetAgent 验证总预算
+6. 如果超预算 → 触发 TravelPlannerAgent 重新规划（最多 2 次重试）
+7. 生成健康提醒 + 偏好合规说明
+8. 返回完整旅行方案
 
 ### Memory Architecture
 
-**All memory files are stored under `app/memory/`** — never use `app/workspace/memory/`.
+**静态记忆文件**存储在 `app/memory/`：
+- `MEMORY.md` - 精选的长期记忆 Markdown
+- `logs/YYYY-MM-DD.md` - 每日会话日志
+
+**所有记忆逻辑代码**集中在 `app/services/memory/`：
 
 | Layer | Storage | Access |
 |-------|---------|--------|
-| Short-term | In-memory (`session_manager.py`) - LangChain ConversationBufferMemory | All agents read/write via ChatService |
-| Long-term | `app/memory/MEMORY.md` - curated markdown | PreferenceAgent write-only, others read-only |
-| Daily logs | `app/memory/YYYY-MM-DD.md` - daily session logs | Session-level append per day |
+| Short-term | `app/services/memory/short_term.py` - ShortTermMemory | 基于 LangChain 的 ConversationBufferMemory |
+| Session | `app/services/memory/session_manager.py` - SessionMemoryManager | 会话级记忆管理 |
+| Long-term | `app/services/memory/markdown_memory.py` - MarkdownMemoryManager | PreferenceAgent 写，其他只读 |
+| Daily logs | `app/services/memory/daily_log.py` - DailyLogManager | 按天追加日志 |
+| Memory Injection | `app/services/memory/memory_injector.py` - MemoryInjector | 会话启动时注入记忆到 System Prompt |
 
 ### Model Fallback Chain
 
-`openai → claude → local` (configured via `model_chain` in `.env`)
+`deepseek → openai → claude → local`（通过 `model_chain` 在 `.env` 配置）
 
-Primary model is DeepSeek (configured via `deepseek_api_key`).
+主要模型是 DeepSeek（通过 `deepseek_api_key` 配置）。
 
 ### Workspace Files
 
-Agent prompts are dynamically assembled from `app/workspace/` markdown files:
-- `SOUL.md` - Core personality and principles
-- `IDENTITY.md` - Agent identity template
-- `USER.md` - User context template
-- `AGENTS.md` - Multi-agent coordination rules
-- `TOOLS.md` - Tool configuration
-- `SYSTEM_PROMPT_*.md` - Agent-specific system prompts
+Agent prompts 从 `app/workspace/` Markdown 文件动态组装：
+- `SOUL.md` - 核心人格和原则
+- `IDENTITY.md` - Agent 身份模板
+- `USER.md` - 用户上下文模板
+- `AGENTS.md` - 多 Agent 协调规则
+- `TOOLS.md` - 工具配置
+- `BOOTSTRAP.md` - 启动引导
+- `SYSTEM_PROMPT_*.md` - Agent 专属 System Prompt
+
+Prompt 组装逻辑在 `app/graph/prompt/` 模块：
+- `composer.py` - PromptComposer 主组装器
+- `workspace_loader.py` - 加载 workspace/*.md
+- `memory_loader.py` - 加载记忆内容
+- `system_builder.py` - System Prompt 构建器
 
 ### Key Files
 
 | Path | Purpose |
 |------|---------|
-| `app/main.py` | FastAPI entry point with lifespan, middleware, routes |
-| `app/config.py` | pydantic-settings configuration (reads `.env`) |
-| `app/services/chat_service.py` | Main chat entry point - orchestrates prompt loading, memory, and model routing |
-| `app/services/model_router.py` | LLM fallback chain with retry logic |
-| `app/agents/supervisor.py` | PlanningAgent - main coordinator (star topology supervisor) |
-| `app/agents/preference.py` | Writes to long-term SQLite memory |
-| `app/memory/long_term.py` | SQLite schema: preferences, trip_history, feedback |
-| `app/memory/session_manager.py` | SessionMemoryManager - per-session ConversationBufferMemory |
-| `app/memory/daily_log.py` | DailyLogManager - appends session logs to `app/memory/YYYY-MM-DD.md` |
-| `app/memory/markdown_memory.py` | Long-term MEMORY.md manager |
-| `app/graph/sys_prompt_builder.py` | Assembles agent prompts from workspace/*.md |
+| `app/main.py` | FastAPI 入口，生命周期管理，中间件，路由 |
+| `app/config.py` | Pydantic Settings 配置（读取 `.env`） |
+| `app/agents/supervisor.py` | PlanningAgent - 主管协调器 |
+| `app/agents/preference.py` | PreferenceAgent - 偏好管理（写 MEMORY.md） |
+| `app/agents/budget.py` | BudgetAgent - 预算计算与验证 |
+| `app/agents/travel_planner.py` | TravelPlannerAgent - 整合搜索+规划 |
+| `app/services/chat/chat_service.py` | 主聊天入口 - 编排 prompt、记忆、模型路由 |
+| `app/services/model/model_router.py` | LLM 故障转移链 + 重试逻辑 |
+| `app/services/memory/session_manager.py` | 会话级 ConversationBufferMemory 管理 |
+| `app/services/memory/markdown_memory.py` | 长期 MEMORY.md 管理器 |
+| `app/services/memory/memory_injector.py` | 会话启动时将记忆注入 System Prompt |
+| `app/graph/sys_prompt_builder.py` | 向后兼容层，代理到 app/graph/prompt/ |
+| `app/tools/travel_skills.py` | LangChain Tools：景点/餐厅/酒店搜索、路线规划 |
+| `app/tools/budget_tools.py` | 预算计算和验证工具 |
 
 ### Observability
 
-- **Tracing**: `trace_id` middleware adds correlation ID to all logs
-- **Metrics**: Prometheus client at `/api/metrics/prometheus`
-- **Structured Logging**: structlog with JSON output
+- **Tracing**: `trace_id` 中间件为所有日志添加关联 ID
+- **Metrics**: Prometheus 客户端在 `/api/metrics/prometheus`
+- **Structured Logging**: structlog + JSON 输出
 
 ## Configuration
 
-All settings via `app/config.py` → pydantic-settings → `.env`:
+所有配置通过 `app/config.py` → pydantic-settings → `.env`：
 
 ```env
-# Primary LLM (DeepSeek)
+# 主要 LLM (DeepSeek)
 deepseek_api_key=
 deepseek_base_url=https://api.deepseek.com
 deepseek_model=deepseek-chat
 
-# Fallback LLMs
+# 备用 LLM
 openai_api_key=
 openai_model=gpt-4o-mini
 claude_api_key=
 
-# Model fallback order
-model_chain=openai,claude,local
+# 模型故障转移顺序
+model_chain=deepseek,openai,claude,local
 
-# Database
+# 外部 API
+tavily_api_key=
+amap_api_key=
+
+# 数据库
 database_url=data/memory.db
+
+# 记忆目录
+memory_dir=app/memory
+memory_file=app/memory/MEMORY.md
 ```
 
 ## Note
 
-The `app/tools/` implementations use **mock data** (hardcoded attractions, restaurants, hotels). This is a prototype architecture demonstrating multi-agent coordination, not connected to real travel APIs.
+- `app/tools/` 中的实现使用 **模拟数据**（硬编码景点、餐厅、酒店）。这是演示多 Agent 协调的原型架构，未连接真实旅行 API。
+- TravelPlannerAgent 是**整合版 Agent**，替代了原有的 AttractionsAgent、FoodAgent、HotelAgent、RouteAgent 等多个专项 Agent。
+- Prompt 系统采用**分层架构**：System Prompt → Workspace Context → Memory Context → User Message。
 
 ## Frontend
 
-The `frontend/` directory contains a React + Vite application:
+`frontend/` 目录包含 React + Vite 应用：
 
 ```bash
 cd frontend && npm install
-npm run dev    # Start development server
-npm run build  # Production build
+npm run dev    # 启动开发服务器
+npm run build  # 生产构建
 ```
 
-It communicates with the FastAPI backend at `http://localhost:8000` via the `/api/chat` endpoint.
+通过 `/api/chat` 或 `/api/chat/stream` 端点与 FastAPI 后端通信。
+
+## API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/chat` | POST | 非流式聊天 |
+| `/api/chat/stream` | POST | 流式聊天（SSE） |
+| `/api/plan` | POST | 旅行规划 |
+| `/api/preference` | GET/POST | 偏好管理 |
+| `/api/session` | GET/POST/DELETE | 会话管理 |
+| `/api/workspace/files` | GET | 获取 workspace 文件列表 |
+| `/api/metrics/prometheus` | GET | Prometheus 指标 |
+| `/api/health` | GET | 健康检查 |
