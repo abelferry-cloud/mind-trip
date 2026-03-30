@@ -80,11 +80,19 @@ class ChatService:
         else:
             full_system = f"{system_prompt}{memory_section}"
 
-        # 4. 将 full_system + user_message 发送给模型
+        # 4. 将 full_system + user_message 发送给模型（带工具调用）
         model_used = self._detect_model()
-        answer = await self._router.call(
-            prompt=message,
-            system=full_system,
+
+        # 构建消息列表
+        chat_messages = []
+        if full_system:
+            chat_messages.append({"role": "system", "content": full_system})
+        chat_messages.append({"role": "user", "content": message})
+
+        # 使用 Tool Calling
+        answer = await self._router.call_with_tools(
+            messages=chat_messages,
+            system="",
         )
 
         # 5. 保存对话到记忆（history_count 是保存前的消息数）
@@ -105,6 +113,74 @@ class ChatService:
             },
             "reasoning": None,  # 预留扩展
         }
+
+    async def chat_stream(
+        self,
+        user_id: str,
+        session_id: str,
+        message: str,
+    ) -> None:
+        """处理流式对话请求（后台任务）。
+
+        替代 chat() 方法，将事件通过 StreamManager 发射。
+        """
+        from app.services.stream_callback import StreamCallbackHandler
+        from app.services.stream_manager import get_stream_manager
+
+        stream_manager = await get_stream_manager()
+        callback = StreamCallbackHandler(stream_manager, session_id)
+
+        # 1. 动态加载 system prompt
+        prompt_result = self._prompt_loader.invoke({
+            "user_id": user_id,
+            "session_id": session_id,
+        })
+        system_prompt = prompt_result["system_prompt"]
+
+        # 2. 加载记忆
+        session_memory = await self._injector.load_session_memory(
+            user_id=user_id,
+            session_id=session_id,
+            mode="main",
+        )
+
+        # 3. 获取对话历史
+        mem = self._memory_manager.get_memory(session_id)
+        history = mem.get_history()
+        formatted_history = self._format_history(history)
+
+        # 4. 构建完整 system message
+        memory_section = f"\n\n## Memory\n\n{session_memory}" if session_memory else ""
+        full_system = f"{system_prompt}{memory_section}\n\n## 对话历史\n{formatted_history}" if formatted_history else f"{system_prompt}{memory_section}"
+
+        # 5. 构建消息列表
+        chat_messages = []
+        if full_system:
+            chat_messages.append({"role": "system", "content": full_system})
+        chat_messages.append({"role": "user", "content": message})
+
+        # 6. 调用模型（带 streaming）
+        try:
+            answer = await self._router.call_with_tools(
+                messages=chat_messages,
+                system="",
+                stream_callback=callback,
+            )
+
+            # 7. 发射最终回复
+            await callback.on_final(answer)
+
+            # 8. 保存到记忆
+            mem.save_context({"input": message}, {"output": answer})
+            self._daily_writer.append(
+                session_id=session_id,
+                user_id=user_id,
+                human_message=message,
+                ai_message=answer,
+            )
+
+        except Exception as e:
+            await callback.on_error(str(e), recoverable=False)
 
     def _format_history(self, history: List[BaseMessage]) -> str:
         """将对话历史格式化为字符串。
