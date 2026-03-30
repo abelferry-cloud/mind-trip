@@ -136,8 +136,13 @@ _Last updated: {date}_
 def _atomic_write(file_path: Path, content: str) -> None:
     """原子写入：写临时文件再 rename。"""
     temp_file = file_path.with_suffix(".md.tmp")
-    temp_file.write_text(content, encoding="utf-8")
-    temp_file.replace(file_path)
+    try:
+        temp_file.write_text(content, encoding="utf-8")
+        temp_file.replace(file_path)
+    except Exception:
+        if temp_file.exists():
+            temp_file.unlink()
+        raise
 
 
 def _validate_path(file_path: Path) -> bool:
@@ -203,8 +208,16 @@ def update_user_context(
     existing = {}
     if file_path.exists():
         content = file_path.read_text(encoding="utf-8")
-        for field in ["user_name", "preferred_name", "identity", "language", "timezone"]:
-            val = _get_field(content, field.replace("_", " ").title().replace(" ", ""))
+        field_mapping = {
+            "user_name": "Name",
+            "preferred_name": "Preferred Name",
+            "identity": "Identity/Bio",
+            "language": "Language",
+            "timezone": "Timezone",
+            "notes": "Notes",
+        }
+        for field, template_field in field_mapping.items():
+            val = _get_field(content, template_field)
             if val:
                 existing[field] = val
 
