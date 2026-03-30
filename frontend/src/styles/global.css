@@ -212,16 +212,6 @@ input::placeholder, textarea::placeholder {
   font-size: 13px;
 }
 
-.streaming-header {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-
-.agent-name {
-  font-weight: 600;
-}
-
 .tool-calls {
   display: flex;
   flex-direction: column;
@@ -242,12 +232,6 @@ input::placeholder, textarea::placeholder {
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
-}
-
-.token-usage {
-  color: #666;
-  font-size: 12px;
-  margin-bottom: 8px;
 }
 
 .reasoning-steps {
@@ -279,7 +263,7 @@ input::placeholder, textarea::placeholder {
 .skill-name {
   font-size: 12px;
   color: var(--text-secondary);
-  background: var(--bg-tertiary);
+  background: var(--bg-secondary);
   padding: 2px 8px;
   border-radius: 4px;
 }
