@@ -77,7 +77,13 @@ class PlanningAgent:
         # Workspace 动态加载器（每次 plan() 调用时重新读取 .md 文件）
         self._prompt_loader = get_supervisor_loader(mode="main")
 
-    async def plan(self, user_id: str, session_id: str, message: str) -> Dict[str, Any]:
+    async def plan(
+        self,
+        user_id: str,
+        session_id: str,
+        message: str,
+        stream_callback: Optional[Any] = None,
+    ) -> Dict[str, Any]:
         """主要规划入口点。"""
         t0 = time.time()
         plan_id = f"plan_{uuid.uuid4().hex[:8]}"
@@ -89,11 +95,13 @@ class PlanningAgent:
         prompt_result = self._prompt_loader.invoke({})
         system_prompt = prompt_result["system_prompt"]
 
-        async def trace(agent_name: str, coro):
-            """包装器用于计时 Agent 调用。"""
+        async def trace(agent_name: str, coro, stream_callback=None):
+            """包装器用于计时 Agent 调用，并可选地发射 agent_switch 事件。"""
             agent_trace["agents"].append(agent_name)
             agent_trace["invocation_order"].append(len(agent_trace["agents"]))
             t = time.time()
+            if stream_callback:
+                await stream_callback.on_phase_start(agent_name, "")
             try:
                 result = await coro
                 agent_trace["durations_ms"].append(int((time.time() - t) * 1000))
@@ -109,13 +117,13 @@ class PlanningAgent:
 
         # 步骤 2：解析并更新偏好
         pref_result = await trace("Preference Agent",
-            self.pref_agent.parse_and_update(user_id, message))
+            self.pref_agent.parse_and_update(user_id, message), stream_callback)
         preferences = await self.pref_agent.get_preference(user_id)
 
         # 步骤 3：并行 - 搜索（景点/餐厅/酒店）+ 预算计算
         search_result, budget_result = await asyncio.gather(
-            trace("TravelPlanner Agent (search)", self.travel_agent.search_all(city, days, budget, preferences)),
-            trace("Budget Agent", self.budget_agent.calculate(days, preferences.get("spending_style", "适中")))
+            trace("TravelPlanner Agent (search)", self.travel_agent.search_all(city, days, budget, preferences), stream_callback),
+            trace("Budget Agent", self.budget_agent.calculate(days, preferences.get("spending_style", "适中")), stream_callback)
         )
         attractions = search_result.get("attractions", [])
         restaurants = search_result.get("restaurants", [])
@@ -127,7 +135,7 @@ class PlanningAgent:
                 "days": days,
                 "city": city,
                 "preferred_start_time": "09:00",
-            }))
+            }), stream_callback)
 
         # 步骤 5：餐厅/酒店已包含在 search_result 中，无需单独获取
 
@@ -144,7 +152,7 @@ class PlanningAgent:
         }
 
         budget_check = await trace("Budget Agent (validation)",
-            self.budget_agent.check_plan(budget, plan_summary))
+            self.budget_agent.check_plan(budget, plan_summary), stream_callback)
 
         # 步骤 7：预算 → 路线调整循环（最多 2 次尝试）
         if not budget_check["within_budget"] and budget_check["alerts"]:
