@@ -157,14 +157,16 @@ class PlanningAgent:
         # 步骤 7：预算 → 路线调整循环（最多 2 次尝试）
         if not budget_check["within_budget"] and budget_check["alerts"]:
             for attempt in [1, 2]:
-                route_result = await self.travel_agent.plan_routes(attractions, {
-                    "days": days,
-                    "city": city,
-                    "preferred_start_time": "09:00",
-                    "replan_context": {"mode": "replan", "reason": "over_budget", "attempt": attempt}
-                })
+                route_result = await trace("TravelPlanner Agent (replan)",
+                    self.travel_agent.plan_routes(attractions, {
+                        "days": days,
+                        "city": city,
+                        "preferred_start_time": "09:00",
+                        "replan_context": {"mode": "replan", "reason": "over_budget", "attempt": attempt}
+                    }), stream_callback)
                 plan_summary["daily_routes"] = route_result.get("daily_routes", [])
-                budget_check = await self.budget_agent.check_plan(budget, plan_summary)
+                budget_check = await trace("Budget Agent (revalidation)",
+                    self.budget_agent.check_plan(budget, plan_summary), stream_callback)
                 if budget_check["within_budget"]:
                     break
 
