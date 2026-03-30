@@ -1,11 +1,11 @@
 # app/tools/decorators.py
 """工具装饰器：@tool_meta、@retry、@cached"""
 import functools
+import threading
 import time
 from collections import OrderedDict
 from typing import Callable, Optional, TypeVar, ParamSpec
 from dataclasses import dataclass
-from app.tools.base import ToolErrorCategory, ToolException
 
 T = TypeVar("T")
 P = ParamSpec("P")
@@ -16,8 +16,8 @@ class ToolMeta:
     """工具元数据"""
     name: str = ""
     description: str = ""
-    tags: list = None
-    examples: list = None
+    tags: Optional[list] = None
+    examples: Optional[list] = None
 
     def __post_init__(self):
         if self.tags is None:
@@ -29,8 +29,8 @@ class ToolMeta:
 def tool_meta(
     name: str = None,
     description: str = None,
-    tags: list = None,
-    examples: list = None
+    tags: Optional[list] = None,
+    examples: Optional[list] = None
 ):
     """工具元数据装饰器"""
     def decorator(func: Callable[P, T]) -> Callable[P, T]:
@@ -62,6 +62,10 @@ def retry(
     def decorator(func: Callable[P, T]) -> Callable[P, T]:
         @functools.wraps(func)
         def wrapper(*args, **kwargs) -> T:
+            # 边界检查：max_attempts <= 0 时直接调用原函数
+            if max_attempts <= 0:
+                return func(*args, **kwargs)
+
             current_delay = delay
             last_exception = None
 
@@ -103,34 +107,36 @@ def cached(ttl: int = 0, max_size: int = 100):
 
         cache: OrderedDict = OrderedDict()
         cache_times: OrderedDict = OrderedDict()
+        cache_lock = threading.Lock()
 
         @functools.wraps(func)
         def wrapper(*args, **kwargs) -> T:
             # 创建可哈希的缓存键
             key = (args, tuple(sorted(kwargs.items())))
 
-            # 检查缓存是否存在且未过期
-            if key in cache:
-                cached_time = cache_times.get(key, 0)
-                if time.time() - cached_time < ttl:
-                    # 移动到末尾（LRU）
-                    cache.move_to_end(key)
-                    return cache[key]
+            with cache_lock:
+                # 检查缓存是否存在且未过期
+                if key in cache:
+                    cached_time = cache_times.get(key, 0)
+                    if time.time() - cached_time < ttl:
+                        # 移动到末尾（LRU）
+                        cache.move_to_end(key)
+                        return cache[key]
 
-            # 执行函数
-            result = func(*args, **kwargs)
+                # 执行函数
+                result = func(*args, **kwargs)
 
-            # 添加到缓存
-            if len(cache) >= max_size:
-                # 移除最老的条目
-                oldest_key = next(iter(cache))
-                del cache[oldest_key]
-                cache_times.pop(oldest_key, None)
+                # 添加到缓存
+                if len(cache) >= max_size:
+                    # 移除最老的条目
+                    oldest_key = next(iter(cache))
+                    del cache[oldest_key]
+                    cache_times.pop(oldest_key, None)
 
-            cache[key] = result
-            cache_times[key] = time.time()
+                cache[key] = result
+                cache_times[key] = time.time()
 
-            return result
+                return result
 
         wrapper.cache_info = lambda: {"size": len(cache), "max_size": max_size, "ttl": ttl}  # type: ignore
         wrapper.clear_cache = lambda: (cache.clear(), cache_times.clear())  # type: ignore
