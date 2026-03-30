@@ -260,3 +260,38 @@ input::placeholder, textarea::placeholder {
   color: #888;
   font-size: 12px;
 }
+
+/* Agent/Skill Display in Streaming Panel */
+.streaming-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.agent-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--accent-primary);
+}
+
+.skill-name {
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.phase-description {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.token-usage {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
