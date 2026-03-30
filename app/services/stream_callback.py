@@ -128,6 +128,23 @@ class StreamCallbackHandler:
         """Agent 切换。"""
         await self._stream_manager.agent_switch(self._session_id, agent)
 
+    async def on_phase_start(self, phase: str, description: str = "") -> None:
+        """Agent 阶段开始，发射 agent_switch 事件。"""
+        await self._stream_manager.agent_switch(self._session_id, phase, description)
+
+    async def on_skill_start(self, skill: str, tool_call_id: str) -> None:
+        """Skill/Tool 开始调用，发射 skill_start 事件。"""
+        await self._stream_manager.skill_start(self._session_id, skill, tool_call_id)
+
+    async def on_skill_end(
+        self,
+        skill: str,
+        summary: Any,
+        duration_ms: int,
+    ) -> None:
+        """Skill/Tool 结束，发射 skill_end 事件。"""
+        await self._stream_manager.skill_end(self._session_id, skill, summary, duration_ms)
+
     async def on_model_switch(self, model: str, reason: str) -> None:
         """模型切换。"""
         await self._stream_manager.model_switch(

@@ -67,8 +67,8 @@ class StreamManager:
 
     # ---- 便捷方法 ----
 
-    async def agent_switch(self, session_id: str, agent: str) -> None:
-        await self.emit(session_id, "agent_switch", {"agent": agent})
+    async def agent_switch(self, session_id: str, agent: str, description: str = "") -> None:
+        await self.emit(session_id, "agent_switch", {"agent": agent, "description": description})
 
     async def model_switch(
         self, session_id: str, model: str, reason: str
@@ -103,6 +103,22 @@ class StreamManager:
         await self.emit(
             session_id, "tool_error",
             {"tool": tool, "error": error}
+        )
+
+    async def skill_start(
+        self, session_id: str, skill: str, tool_call_id: str
+    ) -> None:
+        await self.emit(
+            session_id, "skill_start",
+            {"skill": skill, "tool_call_id": tool_call_id}
+        )
+
+    async def skill_end(
+        self, session_id: str, skill: str, summary: Any, duration_ms: int
+    ) -> None:
+        await self.emit(
+            session_id, "skill_end",
+            {"skill": skill, "summary": summary, "duration_ms": duration_ms}
         )
 
     async def llm_start(self, session_id: str, model: str) -> None:
