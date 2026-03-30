@@ -23,7 +23,7 @@ class ToolRegistry:
     def register(
         self,
         tool: Callable,
-        name: str = None,
+        name: Optional[str] = None,
         description: str = None,
         tags: list = None,
         examples: list = None
@@ -38,6 +38,20 @@ class ToolRegistry:
             "tags": tags or [],
             "examples": examples or [],
         }
+
+    def unregister(self, name: str) -> bool:
+        """从注册中心移除工具
+
+        Args:
+            name: 工具名称
+
+        Returns:
+            True if removed, False if not found
+        """
+        if name in self._tools:
+            del self._tools[name]
+            return True
+        return False
 
     def get_tool(self, name: str) -> Optional[Callable]:
         """根据名称获取工具"""
