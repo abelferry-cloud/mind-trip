@@ -40,3 +40,32 @@ async def test_on_tool_end_summarizes_list_result(handler, mock_stream_manager):
         "找到 2 个结果",
         120,
     )
+
+@pytest.mark.asyncio
+async def test_on_llm_start(handler, mock_stream_manager):
+    await handler.on_llm_start('deepseek-chat')
+    mock_stream_manager.emit.assert_called_once_with(
+        'test_session',
+        'llm_start',
+        {'model': 'deepseek-chat'}
+    )
+
+
+@pytest.mark.asyncio
+async def test_on_tool_start(handler, mock_stream_manager):
+    await handler.on_tool_start('search_attractions', 'call_123')
+    mock_stream_manager.tool_start.assert_called_once_with(
+        'test_session',
+        'search_attractions',
+        'call_123',
+    )
+
+
+@pytest.mark.asyncio
+async def test_on_iteration(handler, mock_stream_manager):
+    await handler.on_iteration(2, 10)
+    mock_stream_manager.iteration.assert_called_once_with(
+        'test_session',
+        2,
+        10,
+    )

@@ -10,7 +10,10 @@
 - on_iteration: 发射 iteration 事件（工具调用循环次数）
 """
 import json
+from dataclasses import dataclass
 from typing import Any, Optional
+
+DEEPSEEK_PRICE_PER_1K_TOKENS = 0.001  # per 1K tokens
 
 
 class StreamCallbackHandler:
@@ -112,13 +115,13 @@ class StreamCallbackHandler:
             step,
         )
 
-    async def on_iteration(self, iteration: int) -> None:
+    async def on_iteration(self, iteration: int, max_iterations: int) -> None:
         """发射工具调用循环次数。"""
         self._iteration = iteration
         await self._stream_manager.iteration(
             self._session_id,
             iteration,
-            self._max_iterations,
+            max_iterations,
         )
 
     async def on_agent_switch(self, agent: str) -> None:
