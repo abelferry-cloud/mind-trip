@@ -139,7 +139,6 @@ const AgentWorkbench = ({ events = [], isExpanded = false, onToggle }) => {
             return updated;
           });
           break;
-          break;
         case 'error':
           setCurrentStep(`Error: ${event.error}`);
           break;
