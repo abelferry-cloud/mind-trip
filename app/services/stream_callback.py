@@ -118,7 +118,6 @@ class StreamCallbackHandler:
 
     async def on_iteration(self, iteration: int, max_iterations: int) -> None:
         """发射工具调用循环次数。"""
-        self._iteration = iteration
         await self._stream_manager.iteration(
             self._session_id,
             iteration,
