@@ -1,5 +1,4 @@
 import React, { useState } from 'react'
-import FeatureCards from './FeatureCards'
 
 const Sidebar = ({
   activeTab,
@@ -72,8 +71,6 @@ const Sidebar = ({
           </button>
         </div>
       </div>
-
-      <FeatureCards />
 
       <div className="session-list">
         {sessions.map(session => (
