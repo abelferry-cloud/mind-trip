@@ -5,7 +5,7 @@
 写入目标：MEMORY.md（长期）+ memory/YYYY-MM-DD.md（每日）
 """
 from typing import Any, Dict
-from app.memory.markdown_memory import MarkdownMemoryManager
+from app.services.memory import MarkdownMemoryManager, get_markdown_memory_manager
 
 
 class PreferenceAgent:

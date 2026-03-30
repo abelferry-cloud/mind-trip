@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional
 from app.agents.preference import PreferenceAgent
 from app.agents.budget import BudgetAgent
 from app.agents.travel_planner import TravelPlannerAgent
-from app.memory.short_term import get_short_term_memory
+from app.services.memory import get_short_term_memory
 from app.services.metrics_service import get_metrics_service
 from app.graph.sys_prompt_builder import get_supervisor_loader
 
