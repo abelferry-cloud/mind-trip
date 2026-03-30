@@ -88,6 +88,9 @@ const Stage = ({
       streaming: true,
       status: 'streaming',
       agent: 'PlanningAgent',
+      currentAgent: 'PlanningAgent',
+      currentSkill: null,
+      phaseDescription: '',
       model: '',
       iteration: 0,
       max_iterations: 10,
@@ -96,6 +99,7 @@ const Stage = ({
       reasoningSteps: [],
       contentBuffer: '',
       error: null,
+      finalReceived: false, // Track if final event has been received
     }
   }
 
@@ -142,11 +146,13 @@ const Stage = ({
 
     es.addEventListener('llm_new_token', (e) => {
       const { token } = JSON.parse(e.data)
-      const updated = messagesRef.current.map(msg =>
-        msg.id === messageId
-          ? { ...msg, contentBuffer: (msg.contentBuffer || '') + token }
-          : msg
-      )
+      const updated = messagesRef.current.map(msg => {
+        // Ignore tokens after final has been received
+        if (msg.id === messageId && !msg.finalReceived) {
+          return { ...msg, contentBuffer: (msg.contentBuffer || '') + token }
+        }
+        return msg
+      })
       onUpdateMessage(sessionId, updated)
     })
 
@@ -211,10 +217,20 @@ const Stage = ({
     })
 
     es.addEventListener('agent_switch', (e) => {
-      const { agent } = JSON.parse(e.data)
+      const { agent, description } = JSON.parse(e.data)
       const updated = messagesRef.current.map(msg =>
         msg.id === messageId
-          ? { ...msg, agent }
+          ? { ...msg, currentAgent: agent, phaseDescription: description || '', contentBuffer: '', content: '' }
+          : msg
+      )
+      onUpdateMessage(sessionId, updated)
+    })
+
+    es.addEventListener('skill_start', (e) => {
+      const { skill, tool_call_id } = JSON.parse(e.data)
+      const updated = messagesRef.current.map(msg =>
+        msg.id === messageId
+          ? { ...msg, currentSkill: skill }
           : msg
       )
       onUpdateMessage(sessionId, updated)
@@ -224,7 +240,7 @@ const Stage = ({
       const { answer } = JSON.parse(e.data)
       const updated = messagesRef.current.map(msg =>
         msg.id === messageId
-          ? { ...msg, content: answer, streaming: false, status: 'done' }
+          ? { ...msg, content: answer, contentBuffer: answer, streaming: false, status: 'done', finalReceived: true }
           : msg
       )
       onUpdateMessage(sessionId, updated)
@@ -235,7 +251,7 @@ const Stage = ({
       const { error } = JSON.parse(e.data)
       const updated = messagesRef.current.map(msg =>
         msg.id === messageId
-          ? { ...msg, error, streaming: false, status: 'error' }
+          ? { ...msg, error, streaming: false, status: 'error', finalReceived: true }
           : msg
       )
       onUpdateMessage(sessionId, updated)
@@ -254,7 +270,7 @@ const Stage = ({
       // Reset message state
       const updated = messages.map(m =>
         m.id === msgId
-          ? { ...m, content: '', contentBuffer: '', streaming: true, status: 'streaming', error: null }
+          ? { ...m, content: '', contentBuffer: '', streaming: true, status: 'streaming', error: null, finalReceived: false }
           : m
       )
       onUpdateMessage(session.id, updated)
@@ -414,9 +430,24 @@ const Stage = ({
                   {message.streaming && (
                     <div className="streaming-status-panel">
                       <div className="streaming-header">
-                        <span className="agent-name">🤖 {message.agent}</span>
+                        <span className="agent-name">🤖 {message.currentAgent || message.agent}</span>
+                        {message.currentSkill && (
+                          <span className="skill-name">⚙️ {message.currentSkill}</span>
+                        )}
+                        {message.phaseDescription && (
+                          <span className="phase-description">{message.phaseDescription}</span>
+                        )}
                         {message.model && <span className="model-name">via {message.model}</span>}
                       </div>
+
+                      {message.tokenUsage && (
+                        <div className="token-usage">
+                          📊 Prompt: {message.tokenUsage.prompt_tokens} |
+                          Completion: {message.tokenUsage.completion_tokens} |
+                          Total: {message.tokenUsage.total_tokens}
+                          {message.tokenUsage.cost_usd && ` ($${message.tokenUsage.cost_usd})`}
+                        </div>
+                      )}
 
                       {message.toolCalls.length > 0 && (
                         <div className="tool-calls">
@@ -434,13 +465,6 @@ const Stage = ({
                               )}
                             </div>
                           ))}
-                        </div>
-                      )}
-
-                      {message.tokenUsage && (
-                        <div className="token-usage">
-                          📊 Token: {message.tokenUsage.prompt_tokens} / {message.tokenUsage.completion_tokens} / {message.tokenUsage.total_tokens}
-                          {message.tokenUsage.cost_usd && ` ($${message.tokenUsage.cost_usd})`}
                         </div>
                       )}
 
