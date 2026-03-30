@@ -51,6 +51,23 @@ class TestCalculateBudget:
         assert result.data["total_budget"] > 0
 
 
+class TestCheckBudgetEdgeCases:
+    @pytest.mark.asyncio
+    async def test_check_budget_zero(self):
+        """测试预算为0的情况"""
+        result = await check_budget_vs_plan.ainvoke({"budget": 0, "plan": {}})
+        assert result.success is True
+        assert result.data["within_budget"] is True
+        assert result.data["remaining"] >= 0
+
+    @pytest.mark.asyncio
+    async def test_check_budget_empty_plan(self):
+        """测试空方案的情况"""
+        result = await check_budget_vs_plan.ainvoke({"budget": 1000, "plan": {}})
+        assert result.success is True
+        assert result.data["within_budget"] is True
+
+
 class TestCheckBudgetVsPlan:
     @pytest.mark.asyncio
     async def test_within_budget(self):

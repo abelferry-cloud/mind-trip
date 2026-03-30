@@ -99,6 +99,10 @@ async def check_budget_vs_plan(
         ToolResult: 包含是否超预算、剩余金额、警告信息的标准工具结果
     """
     try:
+        # 类型校验
+        if not isinstance(plan, dict):
+            raise TypeError(f"plan must be dict, got {type(plan).__name__}")
+
         # 累加方案中的实际花费
         daily_costs = 0
         for route in plan.get("daily_routes", []):
