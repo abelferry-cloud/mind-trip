@@ -13,6 +13,46 @@ from pathlib import Path
 from typing import Annotated, Optional
 
 from langchain_core.tools import tool
+from pydantic import BaseModel, Field
+
+
+# ============================================================
+# Pydantic Schema 定义
+# ============================================================
+
+class UpdateUserContextInput(BaseModel):
+    """更新用户上下文输入模型"""
+    user_name: str = Field(min_length=1, max_length=50, description="用户姓名")
+    preferred_name: str = Field(default="", max_length=50, description="用户喜欢的称呼")
+    identity: str = Field(default="", max_length=200, description="用户身份/职业描述")
+    language: str = Field(default="中文", description="语言偏好")
+    timezone: str = Field(default="Asia/Shanghai", description="时区")
+    notes: str = Field(default="", description="其他备注")
+
+
+class UpdateAgentIdentityInput(BaseModel):
+    """更新智能体身份输入模型"""
+    agent_name: str = Field(min_length=1, description="智能体名称")
+    agent_role: str = Field(default="", description="智能体角色描述")
+    personality: str = Field(default="", description="人格特点")
+    tone: str = Field(default="", description="沟通语气")
+    response_style: str = Field(default="", description="回复风格")
+    expertise: str = Field(default="", description="专业领域")
+    constraints: str = Field(default="", description="行为约束")
+
+
+class UpdateAgentSoulInput(BaseModel):
+    """更新智能体核心人格输入模型"""
+    core_principles: str = Field(default="", description="核心原则（每条一行）")
+    values: str = Field(default="", description="价值观（每条一行）")
+    behavioral_rules: str = Field(default="", description="行为规则（每条一行）")
+    emotional_tone: str = Field(default="", description="情感基调")
+    special_instructions: str = Field(default="", description="特殊指令")
+
+
+class ReadWorkspaceFileInput(BaseModel):
+    """读取 workspace 文件输入模型"""
+    file_name: str = Field(min_length=1, description="文件名（不含路径），如 USER.md, IDENTITY.md, SOUL.md, AGENTS.md 等")
 
 WORKSPACE_DIR = Path(__file__).parent.parent / "workspace"
 
@@ -127,7 +167,7 @@ def _get_field(content: str, field: str) -> Optional[str]:
 # LangChain Tools
 # ============================================================
 
-@tool
+@tool(args_schema=UpdateUserContextInput)
 def update_user_context(
     user_name: Annotated[str, "用户姓名"],
     preferred_name: Annotated[str, "用户喜欢的称呼"] = "",
@@ -198,7 +238,7 @@ def update_user_context(
     }
 
 
-@tool
+@tool(args_schema=UpdateAgentIdentityInput)
 def update_agent_identity(
     agent_name: Annotated[str, "智能体名称"],
     agent_role: Annotated[str, "智能体角色描述"] = "",
@@ -249,7 +289,7 @@ def update_agent_identity(
     }
 
 
-@tool
+@tool(args_schema=UpdateAgentSoulInput)
 def update_agent_soul(
     core_principles: Annotated[str, "核心原则（每条一行）"] = "",
     values: Annotated[str, "价值观（每条一行）"] = "",
@@ -294,7 +334,7 @@ def update_agent_soul(
     }
 
 
-@tool
+@tool(args_schema=ReadWorkspaceFileInput)
 def read_workspace_file(
     file_name: Annotated[str, "文件名（不含路径）"] = "",
 ) -> Annotated[dict, "读取结果"]:
