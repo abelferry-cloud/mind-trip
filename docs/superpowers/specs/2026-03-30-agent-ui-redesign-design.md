@@ -446,102 +446,110 @@ window.smartJournal.memory.onUpdate((entry) => {
 
 ### 7.1 Agent Event Streaming API
 
-**Endpoint:** `GET /api/agents/stream`
+**Existing Endpoint:** `POST /api/chat/stream`
 
-**Description:** SSE endpoint for real-time agent status updates
+**Description:** Reuse existing SSE streaming endpoint. Events are emitted via `StreamManager`.
 
-**Event Types:**
+**Existing Event Types (from `stream_manager.py`):**
 
 | Event | Payload | Description |
 |-------|---------|-------------|
-| `agent:start` | `{ agentId, agentName, timestamp }` | Agent begins processing |
-| `agent:thinking` | `{ agentId, thought, timestamp }` | Agent intermediate thought |
-| `agent:status` | `{ agentId, status, message, timestamp }` | Status update (running/success/error) |
-| `agent:complete` | `{ agentId, result, timestamp }` | Agent finished processing |
-| `agent:error` | `{ agentId, error, timestamp }` | Agent encountered error |
+| `agent_switch` | `{ agent: string }` | Agent changed to new agent |
+| `model_switch` | `{ model: string, reason: string }` | Model changed |
+| `iteration` | `{ iteration: int, max_iterations: int }` | Iteration info |
+| `tool_start` | `{ tool: string, tool_call_id: string }` | Tool execution started |
+| `tool_end` | `{ tool: string, summary: any, duration_ms: int }` | Tool execution completed |
+| `tool_error` | `{ tool: string, error: string }` | Tool execution failed |
+| `llm_start` | `{ model: string }` | LLM started processing |
+| `llm_end` | `{ total_tokens: int, ... }` | LLM finished |
+| `reasoning_step` | `{ step: string }` | Agent reasoning step (thinking) |
+| `content_chunk` | `{ content: string }` | Streaming response content |
+| `final` | `{ answer: string }` | Final complete response |
+| `error` | `{ error: string }` | Error occurred |
 
-**SSE Event Format:**
-```
-event: agent:status
-data: {"agentId": "route", "status": "running", "message": "计算最优路线中...", "timestamp": 1743324000}
-
-event: agent:complete
-data: {"agentId": "route", "result": {"route": [...]}, "timestamp": 1743324010}
-```
-
-**Frontend Subscription:**
+**Frontend Subscription (via existing `EventSource` on `/api/chat/stream`):**
 ```typescript
-const eventSource = new EventSource('/api/agents/stream');
+// Note: SSE events come through the existing chat_stream connection
+const eventSource = new EventSource('/api/chat/stream', { ... });
 
-eventSource.addEventListener('agent:status', (e) => {
+eventSource.addEventListener('agent_switch', (e) => {
   const data = JSON.parse(e.data);
-  agentWorkbench.updateAgent(data.agentId, data.status, data.message);
+  agentWorkbench.switchAgent(data.agent);
 });
 
-eventSource.addEventListener('agent:thinking', (e) => {
+eventSource.addEventListener('reasoning_step', (e) => {
   const data = JSON.parse(e.data);
-  agentWorkbench.appendThought(data.agentId, data.thought);
+  agentWorkbench.appendThought(data.step);
+});
+
+eventSource.addEventListener('tool_start', (e) => {
+  const data = JSON.parse(e.data);
+  agentWorkbench.showToolRunning(data.tool);
 });
 ```
 
-### 7.2 Memory API Endpoints
+### 7.2 Preference API Endpoints
 
-**GET /api/memory**
+**Existing Endpoints (from `app/api/preference.py`):**
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/preference/{user_id}` | Get user preferences and history |
+| PUT | `/api/preference/{user_id}` | Update a specific preference |
+
+**GET /api/preference/{user_id} Response:**
 ```json
-Response: {
-  "session": { /* current session context */ },
-  "longterm": {
-    "preferences": [...],
-    "past_trips": [...]
-  }
+{
+  "user_id": "user123",
+  "preferences": {
+    "preferred_cuisine": "川菜",
+    "budget_range": "2000-3000/天",
+    "travel_style": "自然风光"
+  },
+  "history_trips": [
+    { "date": "2026-03-15", "destination": "上海", "duration": "2日" }
+  ]
 }
 ```
 
-**POST /api/memory/preferences**
+**PUT /api/preference/{user_id} Request:**
 ```json
-Request: { "key": "preferred_cuisine", "value": "川菜" }
-Response: { "success": true, "entry": { "key": "preferred_cuisine", "value": "川菜", "updated_at": "..." } }
-```
-
-**PUT /api/memory/preferences/:key**
-```json
-Request: { "value": "浙菜" }
-Response: { "success": true, "entry": { "key": "preferred_cuisine", "value": "浙菜", "updated_at": "..." } }
-```
-
-**DELETE /api/memory/preferences/:key**
-```json
-Response: { "success": true }
-```
-
-**GET /api/memory/export**
-```json
-Response: {
-  "preferences": [...],
-  "past_trips": [...],
-  "exported_at": "..."
+{
+  "key": "preferred_cuisine",
+  "value": "浙菜"
 }
 ```
 
-### 7.3 Feature Module Registration
+### 7.3 Future Feature API (Reserved)
 
-**POST /api/features/register** (Internal API for future features)
-```json
-Request: {
-  "id": "attractions",
-  "name": "景点推荐",
-  "icon": "🗺️",
-  "status": "coming_soon",
-  "panel": "sidebar"
+For future feature modules (attractions, hotels, etc.), a simple registration mechanism:
+
+```typescript
+// Frontend feature registry (no backend API needed initially)
+interface FeatureModule {
+  id: string;
+  name: string;
+  icon: string;
+  status: 'coming_soon' | 'active' | 'disabled';
+  panel: 'sidebar' | 'stage' | 'inspector' | 'modal';
+  component?: React.Component;
 }
-Response: { "success": true, "module_id": "attractions" }
+
+// Static registration in component code
+const featureRegistry = {
+  attractions: { id: 'attractions', name: '景点推荐', icon: '🗺️', status: 'coming_soon', panel: 'sidebar' },
+  route: { id: 'route', name: '路线规划', icon: '📍', status: 'coming_soon', panel: 'sidebar' },
+  budget: { id: 'budget', name: '预算控制', icon: '💰', status: 'coming_soon', panel: 'sidebar' },
+  food: { id: 'food', name: '美食推荐', icon: '🍜', status: 'coming_soon', panel: 'sidebar' },
+  hotel: { id: 'hotel', name: '酒店预订', icon: '🏨', status: 'coming_soon', panel: 'sidebar' },
+};
 ```
 
 ---
 
 ## 8. Technical Considerations
 
-### 7.1 Performance
+### 8.1 Performance
 - Lazy load Inspector tabs content
 - Virtualize message list for long conversations
 - Debounce resize handlers (16ms)
@@ -564,7 +572,7 @@ Response: { "success": true, "module_id": "attractions" }
 |------|----------|----------|
 | Q1 | Agent Workbench 默认展开还是收起？ | 建议默认收起，用户点击展开 |
 | Q2 | Feature Cards 是否需要拖拽排序？ | 第一版不需要，保持固定顺序 |
-| Q3 | 是否需要暗黑/亮色模式切换？ | 后续版本考虑，当前保持暗黑 |
+| Q3 | 是否需要暗黑/亮色模式切换？ | 后续版本考虑，当前保持亮色主题 |
 
 ---
 
