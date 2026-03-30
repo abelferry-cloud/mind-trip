@@ -2,7 +2,7 @@
 """工具基础设施：异常类与标准返回格式"""
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
+from typing import Any, Optional
 
 
 class ToolErrorCategory(Enum):
@@ -21,7 +21,7 @@ class ToolException(Exception):
         self,
         category: ToolErrorCategory,
         message: str,
-        details: dict = None,
+        details: Optional[dict] = None,
         retryable: bool = False
     ):
         self.category = category
