@@ -1,5 +1,6 @@
 # app/tools/registry.py
 """工具注册中心 - 单例模式管理所有工具"""
+import threading
 from typing import Any, Callable, Optional
 
 
@@ -8,11 +9,15 @@ class ToolRegistry:
 
     _instance: Optional["ToolRegistry"] = None
     _tools: dict[str, dict] = {}
+    _lock = threading.Lock()
 
     def __new__(cls):
         if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance._tools = {}
+            with cls._lock:
+                # 双重检查锁定
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
+                    cls._instance._tools = {}
         return cls._instance
 
     def register(
