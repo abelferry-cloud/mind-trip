@@ -1,4 +1,4 @@
-# app/memory/injector.py
+# app/services/memory/memory_injector.py
 """MemoryInjector - 在会话开始时将记忆内容组合到 system prompt 中。
 
 参考：OpenClaw 会话开始时的记忆加载：
@@ -7,8 +7,8 @@
 """
 from typing import Literal, Optional
 
-from app.memory.markdown_memory import MarkdownMemoryManager
-from app.memory.daily_log import DailyLogManager
+from app.services.memory.markdown_memory import MarkdownMemoryManager
+from app.services.memory.daily_log import DailyLogManager
 
 
 class MemoryInjector:

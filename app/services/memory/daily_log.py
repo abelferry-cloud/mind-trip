@@ -38,7 +38,7 @@ class DailyLogManager:
 
     def __init__(self, memory_dir: Optional[str] = None):
         if memory_dir is None:
-            memory_dir = Path(__file__).parent / "logs"
+            memory_dir = Path(__file__).parent.parent.parent / "memory" / "logs"
         else:
             memory_dir = Path(memory_dir) / "logs"
         self.memory_dir = memory_dir

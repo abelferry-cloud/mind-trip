@@ -1,3 +1,4 @@
+# app/services/memory/session_manager.py
 """会话记忆管理器 - 按 session_id 管理 ConversationBufferMemory 实例。"""
 
 from typing import Dict, Optional, List

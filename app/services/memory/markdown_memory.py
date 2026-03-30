@@ -1,4 +1,4 @@
-# app/memory/markdown_memory.py
+# app/services/memory/markdown_memory.py
 """MarkdownMemoryManager - 管理 MEMORY.md 作为精选的长期记忆文件。
 
 参考：OpenClaw 的 "Markdown is Source of Truth" — 文件是唯一真相源，
@@ -50,7 +50,7 @@ class MarkdownMemoryManager:
 
     def __init__(self, memory_path: Optional[str] = None):
         if memory_path is None:
-            memory_path = Path(__file__).parent.parent / "workspace" / "MEMORY.md"
+            memory_path = Path(__file__).parent.parent.parent / "workspace" / "MEMORY.md"
         else:
             memory_path = Path(memory_path)
         self.memory_path = memory_path
