@@ -81,9 +81,9 @@ class ModelRouter:
                 if model == "openai":
                     return await self._call_openai_with_tools(messages, system, stream_callback)
                 elif model == "claude":
-                    return await self._call_claude_with_tools(messages, system)
+                    return await self._call_claude_with_tools(messages, system, stream_callback)
                 elif model == "local":
-                    return await self._call_local_with_tools(messages, system)
+                    return await self._call_local_with_tools(messages, system, stream_callback)
             except Exception as e:
                 last_error = e
                 if self._is_retryable(e):
@@ -291,6 +291,7 @@ class ModelRouter:
         self,
         messages: List[Dict[str, Any]],
         system: str,
+        stream_callback: Optional[Any] = None,
     ) -> str:
         """Claude Tool Calling（预留）。"""
         if not self.settings.claude_api_key:
@@ -302,6 +303,7 @@ class ModelRouter:
         self,
         messages: List[Dict[str, Any]],
         system: str,
+        stream_callback: Optional[Any] = None,
     ) -> str:
         """本地模型 Tool Calling（预留）。"""
         return "[Local] Tool calling not yet implemented for local models."
