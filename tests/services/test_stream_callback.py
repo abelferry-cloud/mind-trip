@@ -10,6 +10,7 @@ def mock_stream_manager():
     manager.emit = AsyncMock()
     manager.tool_start = AsyncMock()
     manager.tool_end = AsyncMock()
+    manager.tool_error = AsyncMock()
     manager.reasoning_step = AsyncMock()
     manager.iteration = AsyncMock()
     return manager
@@ -68,4 +69,24 @@ async def test_on_iteration(handler, mock_stream_manager):
         'test_session',
         2,
         10,
+    )
+
+
+@pytest.mark.asyncio
+async def test_on_llm_end(handler, mock_stream_manager):
+    await handler.on_llm_end(total_tokens=100, prompt_tokens=50, completion_tokens=50)
+    mock_stream_manager.emit.assert_called_once_with(
+        'test_session',
+        'llm_end',
+        {'total_tokens': 100, 'prompt_tokens': 50, 'completion_tokens': 50, 'cost_usd': 0.0001},
+    )
+
+
+@pytest.mark.asyncio
+async def test_on_tool_error(handler, mock_stream_manager):
+    await handler.on_tool_error('search_attractions', 'Connection timeout')
+    mock_stream_manager.tool_error.assert_called_once_with(
+        'test_session',
+        'search_attractions',
+        'Connection timeout',
     )

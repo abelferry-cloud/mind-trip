@@ -11,7 +11,10 @@
 """
 import json
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
+
+if TYPE_CHECKING:
+    from app.services.stream_manager import StreamManager
 
 DEEPSEEK_PRICE_PER_1K_TOKENS = 0.001  # per 1K tokens
 
@@ -22,11 +25,9 @@ class StreamCallbackHandler:
     通过 __init__ 注入 StreamManager 实例和 session_id。
     """
 
-    def __init__(self, stream_manager, session_id: str):
+    def __init__(self, stream_manager: "StreamManager", session_id: str):
         self._stream_manager = stream_manager
         self._session_id = session_id
-        self._iteration = 0
-        self._max_iterations = 10
 
     async def on_llm_start(self, model: str) -> None:
         """LLM 开始推理。"""
