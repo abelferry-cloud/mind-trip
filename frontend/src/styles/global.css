@@ -188,3 +188,61 @@ input::placeholder, textarea::placeholder {
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
 }
+
+/* Streaming Status Panel */
+.streaming-status-panel {
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 8px;
+  padding: 12px;
+  margin-top: 8px;
+  font-size: 13px;
+}
+
+.streaming-header {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.agent-name {
+  font-weight: 600;
+}
+
+.tool-calls {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.tool-call {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tool-call.running .tool-icon {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.token-usage {
+  color: #666;
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+.reasoning-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.reasoning-step {
+  color: #888;
+  font-size: 12px;
+}

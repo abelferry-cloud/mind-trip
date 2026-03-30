@@ -16,12 +16,23 @@ const Stage = ({
   resizing,
   style,
   onToggleSidebar,
-  sidebarVisible
+  sidebarVisible,
+  onToggleInspector,
+  inspectorVisible
 }) => {
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [expandedThoughts, setExpandedThoughts] = useState({})
+  const [streamingMsgId, setStreamingMsgId] = useState(null)
+  const eventSourceRef = useRef(null)
+  const typewriterRef = useRef(null)
   const messagesEndRef = useRef(null)
+  const messagesRef = useRef([])
+
+  // Keep messagesRef in sync with displayMessages
+  useEffect(() => {
+    messagesRef.current = displayMessages
+  }, [displayMessages])
 
   const displayMessages = messages.length > 0 ? messages : (session?.messages || [])
 
@@ -32,6 +43,138 @@ const Stage = ({
   useEffect(() => {
     scrollToBottom()
   }, [displayMessages])
+
+  // Streaming message creation
+  const createStreamingMessage = (sessionId) => {
+    return {
+      id: `temp_${Date.now()}`,
+      role: 'assistant',
+      content: '',
+      streaming: true,
+      status: 'streaming',
+      agent: 'PlanningAgent',
+      model: '',
+      iteration: 0,
+      max_iterations: 10,
+      toolCalls: [],
+      tokenUsage: null,
+      reasoningSteps: [],
+      contentBuffer: '',
+      error: null,
+    }
+  }
+
+  // EventSource connection for streaming
+  const startStreaming = (sessionId, messageId) => {
+    const es = new EventSource(`/api/chat/stream?session_id=${sessionId}`)
+    eventSourceRef.current = es
+
+    es.addEventListener('connected', () => {
+      console.log('SSE connected')
+    })
+
+    es.addEventListener('llm_new_token', (e) => {
+      const { token } = JSON.parse(e.data)
+      const updated = messagesRef.current.map(msg =>
+        msg.id === messageId
+          ? { ...msg, contentBuffer: (msg.contentBuffer || '') + token }
+          : msg
+      )
+      onUpdateMessage(sessionId, updated)
+    })
+
+    es.addEventListener('tool_start', (e) => {
+      const { tool, tool_call_id } = JSON.parse(e.data)
+      const updated = messagesRef.current.map(msg =>
+        msg.id === messageId
+          ? {
+              ...msg,
+              toolCalls: [...msg.toolCalls, { tool, tool_call_id, status: 'running' }]
+            }
+          : msg
+      )
+      onUpdateMessage(sessionId, updated)
+    })
+
+    es.addEventListener('tool_end', (e) => {
+      const { tool, summary, duration_ms } = JSON.parse(e.data)
+      const updated = messagesRef.current.map(msg =>
+        msg.id === messageId
+          ? {
+              ...msg,
+              toolCalls: msg.toolCalls.map(tc =>
+                tc.tool === tool
+                  ? { ...tc, status: 'done', summary, duration_ms }
+                  : tc
+              )
+            }
+          : msg
+      )
+      onUpdateMessage(sessionId, updated)
+    })
+
+    es.addEventListener('token_usage', (e) => {
+      const usage = JSON.parse(e.data)
+      const updated = messagesRef.current.map(msg =>
+        msg.id === messageId
+          ? { ...msg, tokenUsage: usage }
+          : msg
+      )
+      onUpdateMessage(sessionId, updated)
+    })
+
+    es.addEventListener('reasoning_step', (e) => {
+      const { step } = JSON.parse(e.data)
+      const updated = messagesRef.current.map(msg =>
+        msg.id === messageId
+          ? { ...msg, reasoningSteps: [...msg.reasoningSteps, step] }
+          : msg
+      )
+      onUpdateMessage(sessionId, updated)
+    })
+
+    es.addEventListener('iteration', (e) => {
+      const { iteration, max_iterations } = JSON.parse(e.data)
+      const updated = messagesRef.current.map(msg =>
+        msg.id === messageId
+          ? { ...msg, iteration, max_iterations }
+          : msg
+      )
+      onUpdateMessage(sessionId, updated)
+    })
+
+    es.addEventListener('agent_switch', (e) => {
+      const { agent } = JSON.parse(e.data)
+      const updated = messagesRef.current.map(msg =>
+        msg.id === messageId
+          ? { ...msg, agent }
+          : msg
+      )
+      onUpdateMessage(sessionId, updated)
+    })
+
+    es.addEventListener('final', (e) => {
+      const { answer } = JSON.parse(e.data)
+      const updated = messagesRef.current.map(msg =>
+        msg.id === messageId
+          ? { ...msg, content: answer, streaming: false, status: 'done' }
+          : msg
+      )
+      onUpdateMessage(sessionId, updated)
+      es.close()
+    })
+
+    es.addEventListener('error', (e) => {
+      const { error } = JSON.parse(e.data)
+      const updated = messagesRef.current.map(msg =>
+        msg.id === messageId
+          ? { ...msg, error, streaming: false, status: 'error' }
+          : msg
+      )
+      onUpdateMessage(sessionId, updated)
+      es.close()
+    })
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -51,17 +194,23 @@ const Stage = ({
       onUpdateSessionTitle(session.id, title)
     }
 
-    const newMessages = [...session.messages, userMessage]
+    // Create streaming message
+    const assistantMessage = createStreamingMessage(session.id)
+    setStreamingMsgId(assistantMessage.id)
+
+    const newMessages = [...session.messages, userMessage, assistantMessage]
     onUpdateMessage(session.id, newMessages)
     setInput('')
     setIsLoading(true)
 
+    // Start SSE connection
+    startStreaming(session.id, assistantMessage.id)
+
     try {
-      const response = await fetch('/api/chat', {
+      // Send to API (non-blocking for streaming)
+      const response = await fetch('/api/chat/stream', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           user_id: 'default_user',
           session_id: session.id,
@@ -69,27 +218,18 @@ const Stage = ({
         }),
       })
 
-      const data = await response.json()
-
-      const assistantMessage = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: data.answer || '抱歉，发生了错误。',
-        modelUsed: data.metadata?.model,
-        timestamp: data.metadata?.timestamp || new Date().toISOString(),
-        thoughts: generateMockThoughts(data.answer)
+      if (!response.ok) {
+        throw new Error('Stream failed')
       }
-
-      onUpdateMessage(session.id, [...newMessages, assistantMessage])
+      // Response body is consumed by EventSource
     } catch (error) {
-      const errorMessage = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: '网络错误，请检查后端服务是否运行。',
-        timestamp: new Date().toISOString(),
-        thoughts: []
-      }
-      onUpdateMessage(session.id, [...newMessages, errorMessage])
+      // Handle error
+      const updated = messagesRef.current.map(msg =>
+        msg.id === assistantMessage.id
+          ? { ...msg, content: '连接失败', streaming: false, status: 'error' }
+          : msg
+      )
+      onUpdateMessage(session.id, updated)
     } finally {
       setIsLoading(false)
     }
@@ -126,14 +266,23 @@ const Stage = ({
   return (
     <main className="stage" style={style}>
       <header className="stage-header">
-        <div className="stage-title">
-          <span>{session?.title || '新会话'}</span>
-          <div className="stage-status">
-            <span className={`status-dot ${isLoading ? '' : 'idle'}`}></span>
-            <span>{isLoading ? '思考中...' : '就绪'}</span>
+        <div className="stage-header-left">
+          <button
+            className="stage-action-btn"
+            onClick={onToggleSidebar}
+            title={sidebarVisible ? '隐藏左侧菜单' : '显示左侧菜单'}
+          >
+            {sidebarVisible ? <PanelLeftCloseIcon /> : <PanelLeftOpenIcon />}
+          </button>
+          <div className="stage-title">
+            <span>{session?.title || '新会话'}</span>
+            <div className="stage-status">
+              <span className={`status-dot ${isLoading ? '' : 'idle'}`}></span>
+              <span>{isLoading ? '思考中...' : '就绪'}</span>
+            </div>
           </div>
         </div>
-        <div className="stage-actions">
+        <div className="stage-header-right">
           <button
             className="stage-action-btn"
             onClick={() => onInspectorFileChange(inspectorFile === 'SOUL.md' ? 'MEMORY.md' : 'SOUL.md')}
@@ -143,11 +292,10 @@ const Stage = ({
           </button>
           <button
             className="stage-action-btn"
-            onClick={onToggleSidebar}
-            title={sidebarVisible ? '隐藏侧边栏' : '显示侧边栏'}
+            onClick={onToggleInspector}
+            title={inspectorVisible ? '隐藏右侧面板' : '显示右侧面板'}
           >
-            {sidebarVisible ? <PanelLeftCloseIcon /> : <PanelLeftOpenIcon />}
-            <span>{sidebarVisible ? '隐藏' : '显示'}</span>
+            {inspectorVisible ? <PanelRightCloseIcon /> : <PanelRightOpenIcon />}
           </button>
         </div>
       </header>
@@ -174,7 +322,57 @@ const Stage = ({
               </div>
               <div className="message-content">
                 <div className="message-bubble">
-                  <ReactMarkdown>{message.content}</ReactMarkdown>
+                  <ReactMarkdown>{message.contentBuffer || message.content}</ReactMarkdown>
+
+                  {message.streaming && (
+                    <div className="streaming-status-panel">
+                      <div className="streaming-header">
+                        <span className="agent-name">🤖 {message.agent}</span>
+                        {message.model && <span className="model-name">via {message.model}</span>}
+                      </div>
+
+                      {message.toolCalls.length > 0 && (
+                        <div className="tool-calls">
+                          {message.toolCalls.map((tc, i) => (
+                            <div key={i} className={`tool-call ${tc.status}`}>
+                              <span className="tool-icon">
+                                {tc.status === 'running' ? '🔧' : tc.status === 'done' ? '✅' : '❌'}
+                              </span>
+                              <span className="tool-name">{tc.tool}</span>
+                              {tc.status === 'done' && tc.summary && (
+                                <span className="tool-summary">→ {tc.summary}</span>
+                              )}
+                              {tc.status === 'done' && tc.duration_ms && (
+                                <span className="tool-duration">({tc.duration_ms}ms)</span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {message.tokenUsage && (
+                        <div className="token-usage">
+                          📊 Token: {message.tokenUsage.prompt_tokens} / {message.tokenUsage.completion_tokens} / {message.tokenUsage.total_tokens}
+                          {message.tokenUsage.cost_usd && ` ($${message.tokenUsage.cost_usd})`}
+                        </div>
+                      )}
+
+                      {message.reasoningSteps.length > 0 && (
+                        <div className="reasoning-steps">
+                          {message.reasoningSteps.map((step, i) => (
+                            <div key={i} className="reasoning-step">💭 {step}</div>
+                          ))}
+                        </div>
+                      )}
+
+                      {message.error && (
+                        <div className="stream-error">
+                          ⚠️ {message.error}
+                          <button onClick={() => {/* retry */}}>重新发送</button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {message.role === 'assistant' && message.thoughts && message.thoughts.length > 0 && (
@@ -330,6 +528,22 @@ const PanelLeftOpenIcon = () => (
     <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
     <line x1="9" y1="3" x2="9" y2="21" />
     <polyline points="9 8 14 12 9 16" />
+  </svg>
+)
+
+const PanelRightCloseIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+    <line x1="15" y1="3" x2="15" y2="21" />
+    <polyline points="9 16 13 12 9 8" />
+  </svg>
+)
+
+const PanelRightOpenIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+    <line x1="15" y1="3" x2="15" y2="21" />
+    <polyline points="15 8 10 12 15 16" />
   </svg>
 )
 
