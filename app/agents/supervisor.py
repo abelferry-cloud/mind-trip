@@ -198,27 +198,47 @@ class PlanningAgent:
         # 从 calculate_budget 调用获取类别细分
         cat_breakdown = budget_result  # 来自 calculate_budget 调用
 
+        # 构造自然语言回答
+        answer = f"已为您规划 {city} {days} 天行程，预算 {budget} 元。\n\n"
+
+        if route_result.get("daily_routes"):
+            answer += "每日行程：\n"
+            for i, route in enumerate(route_result["daily_routes"][:3], 1):  # 最多显示3天
+                answer += f"第{i}天：{route.get('title', '自由活动')}\n"
+
+        budget_summary = {
+            "total_budget": budget,
+            "attractions_total": plan_summary["attractions_total"],
+            "food_total": plan_summary["food_total"],
+            "hotel_total": hotel_cost,
+            "transport_total": plan_summary["transport_to_city"]["cost"] + plan_summary["transport_within_city"],
+            "reserve": max(0, reserve),
+            "within_budget": budget_check["within_budget"],
+            "remaining": budget_check.get("remaining", 0),
+            "alerts": budget_check.get("alerts", [])
+        }
+
+        if budget_summary.get("within_budget") is False:
+            answer += f"\n预算提醒：您的预算可能不足，剩余 {budget_summary.get('remaining', 0)} 元"
+
+        if health_alerts:
+            answer += "\n\n健康提醒：" + "；".join(health_alerts[:2])  # 最多2条
+
+        total_cost = budget_summary.get('attractions_total', 0) + budget_summary.get('food_total', 0) + budget_summary.get('hotel_total', 0) + budget_summary.get('transport_total', 0)
+        answer += f"\n\n预算总计：{total_cost} 元"
+
         return {
             "plan_id": plan_id,
             "city": city,
             "days": days,
             "budget": budget,
+            "answer": answer,
             "system_prompt": system_prompt,  # 动态加载的系统提示词
             "daily_routes": route_result.get("daily_routes", []),
             "attractions": attractions,
             "food": restaurants,
             "hotels": hotels,
-            "budget_summary": {
-                "total_budget": budget,
-                "attractions_total": plan_summary["attractions_total"],
-                "food_total": plan_summary["food_total"],
-                "hotel_total": hotel_cost,
-                "transport_total": plan_summary["transport_to_city"]["cost"] + plan_summary["transport_within_city"],
-                "reserve": max(0, reserve),
-                "within_budget": budget_check["within_budget"],
-                "remaining": budget_check.get("remaining", 0),
-                "alerts": budget_check.get("alerts", [])
-            },
+            "budget_summary": budget_summary,
             "health_alerts": health_alerts,
             "preference_compliance": preference_compliance,
             "agent_trace": agent_trace,
