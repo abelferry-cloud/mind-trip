@@ -11,10 +11,12 @@ from datetime import datetime, timezone
 from typing import Optional, List
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 from app.graph.sys_prompt_builder import get_supervisor_loader
-from app.services.model_router import get_model_router
-from app.memory.session_manager import get_session_memory_manager
-from app.memory.daily_log import DailyLogManager, get_daily_log_manager
-from app.services.memory_injector import MemoryInjector, get_memory_injector
+from app.services.model import get_model_router
+from app.services.memory import (
+    get_session_memory_manager,
+    get_daily_log_manager,
+    get_memory_injector,
+)
 
 
 class ChatService:
@@ -124,8 +126,7 @@ class ChatService:
 
         替代 chat() 方法，将事件通过 StreamManager 发射。
         """
-        from app.services.stream_callback import StreamCallbackHandler
-        from app.services.stream_manager import get_stream_manager
+        from app.services.streaming import StreamCallbackHandler, get_stream_manager
 
         stream_manager = await get_stream_manager()
         callback = StreamCallbackHandler(stream_manager, session_id)

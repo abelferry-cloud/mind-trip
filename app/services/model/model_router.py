@@ -1,4 +1,4 @@
-# app/services/model_router.py
+# app/services/model/model_router.py
 """模型路由 - 处理模型回退链（OpenAI → Claude → 本地）。
 
 根据设计文档第 6.1 节：
@@ -11,9 +11,10 @@
 """
 import asyncio
 from typing import Any, Dict, List, Literal, Optional
+
 from app.config import get_settings
-from app.services.tool_registry import get_tools_schema
-from app.services.tool_calling_service import get_tool_calling_service
+from app.services.tools.tool_registry import get_tools_schema
+from app.services.tools.tool_calling_service import get_tool_calling_service
 
 ModelName = Literal["openai", "claude", "local"]
 

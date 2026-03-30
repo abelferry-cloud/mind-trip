@@ -1,4 +1,4 @@
-"""app/services/stream_callback.py - LangChain 风格回调处理器。
+"""app/services/streaming/stream_callback.py - LangChain 风格回调处理器。
 
 实现以下方法：
 - on_llm_start: 发射 llm_start 事件
@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
-    from app.services.stream_manager import StreamManager
+    from app.services.streaming.stream_manager import StreamManager
 
 DEEPSEEK_PRICE_PER_1K_TOKENS = 0.001  # per 1K tokens
 

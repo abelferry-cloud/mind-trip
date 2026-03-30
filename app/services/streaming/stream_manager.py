@@ -1,4 +1,4 @@
-"""app/services/stream_manager.py - SSE 事件发射器单例。
+"""app/services/streaming/stream_manager.py - SSE 事件发射器单例。
 
 维护每个 session_id -> asyncio.Queue 的映射，供各服务发射 SSE 事件。
 """

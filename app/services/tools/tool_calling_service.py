@@ -1,4 +1,4 @@
-"""app/services/tool_calling_service.py - Tool Calling 服务。
+"""app/services/tools/tool_calling_service.py - Tool Calling 服务。
 
 遵循 OpenClaw 的 OpenAI Tool Calling 协议：
 1. 发送消息 + tools 声明到 LLM
@@ -11,7 +11,7 @@ import structlog
 from typing import Any, Dict, List, Optional
 
 from app.config import get_settings
-from app.services.tool_registry import get_tool
+from app.services.tools.tool_registry import get_tool
 
 logger = structlog.get_logger()
 
