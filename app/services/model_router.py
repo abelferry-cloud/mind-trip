@@ -217,12 +217,16 @@ class ModelRouter:
         accumulated_content = ""
         final_chunk = None  # Keep last chunk to check for tool_calls
 
-        async for chunk in response:
-            final_chunk = chunk
-            if chunk.choices[0].delta.content:
-                token = chunk.choices[0].delta.content
-                accumulated_content += token
-                await stream_callback.on_llm_new_token(token)
+        try:
+            async for chunk in response:
+                final_chunk = chunk
+                if chunk.choices[0].delta.content:
+                    token = chunk.choices[0].delta.content
+                    accumulated_content += token
+                    await stream_callback.on_llm_new_token(token)
+        except Exception as e:
+            self._primary_available = False
+            raise
 
         # After streaming, parse tool_calls from final chunk
         tool_calls = None
