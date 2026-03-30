@@ -11,7 +11,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 from typing import List
 
-from app.memory.daily_log import DailyLogManager, get_daily_log_manager
+from app.services.memory import DailyLogManager, get_daily_log_manager
 
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
 
@@ -47,9 +47,9 @@ _daily_mgr: DailyLogManager = get_daily_log_manager()
 
 
 def _scan_sessions_from_daily_logs() -> List[SessionInfo]:
-    """扫描所有 memory/*.md 文件并提取唯一的会话。"""
+    """扫描所有 memory/logs/*.md 文件并提取唯一的会话。"""
     sessions = {}
-    memory_dir = Path(__file__).parent.parent / "workspace" / "memory"
+    memory_dir = Path(__file__).parent.parent / "memory" / "logs"
     if not memory_dir.exists():
         return []
 
@@ -125,7 +125,7 @@ async def delete_session(session_id: str):
     now = datetime.now()
     date_str = now.strftime("%Y-%m-%d")
     marker = f"\n## Session: {session_id} [DELETED]\n"
-    memory_dir = Path(__file__).parent.parent / "workspace" / "memory"
+    memory_dir = Path(__file__).parent.parent / "memory" / "logs"
     day_file = memory_dir / f"{date_str}.md"
     if day_file.exists():
         with open(day_file, "a", encoding="utf-8") as f:

@@ -16,7 +16,7 @@ async def health():
     - LLM 可用性（通过模型路由）
     - 记忆子系统：workspace 和 memory/ 目录存在
     """
-    from app.services.model_router import get_model_router
+    from app.services.model import get_model_router
     router_instance = get_model_router()
     llm_primary_available = router_instance.is_primary_available()
     llm_available = llm_primary_available

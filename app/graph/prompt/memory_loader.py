@@ -7,8 +7,8 @@ Token 预算控制由本类负责：分阶段截断直到在预算内。
 """
 from typing import Literal, Optional
 
-from app.memory.daily_log import DailyLogManager
-from app.memory.markdown_memory import MarkdownMemoryManager
+from app.services.memory import DailyLogManager
+from app.services.memory import MarkdownMemoryManager
 
 
 class MemoryLoader:

@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.middleware.tracing import TracingMiddleware
 from app.middleware.error_handler import ErrorHandlerMiddleware
-from app.api import chat, plan, preference, monitor, session, workspace
+from app.api import chat, chat_stream, plan, preference, monitor, session, workspace
 
 # 配置结构化日志
 structlog.configure(
@@ -45,6 +45,7 @@ def create_app() -> FastAPI:
 
     # 路由
     app.include_router(chat.router)
+    app.include_router(chat_stream.router)
     app.include_router(plan.router)
     app.include_router(preference.router)
     app.include_router(monitor.router)

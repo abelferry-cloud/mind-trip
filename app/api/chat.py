@@ -13,7 +13,7 @@ from fastapi import APIRouter, Request, BackgroundTasks
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import Optional
-from app.services.chat_service import get_chat_service
+from app.services.chat import get_chat_service
 from app.config import get_settings
 
 router = APIRouter(prefix="/api", tags=["chat"])
