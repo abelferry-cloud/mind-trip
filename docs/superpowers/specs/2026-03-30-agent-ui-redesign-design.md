@@ -1,8 +1,8 @@
 # Smart Travel Journal - Agent UI Redesign Design
 
 **Date:** 2026-03-30
-**Status:** Draft
-**Version:** 1.0
+**Status:** Draft v2 (Review Iteration 1)
+**Version:** 1.1
 
 ---
 
@@ -38,41 +38,42 @@ Smart Travel Journal is a multi-agent trip planning system based on LangChain. C
 
 ### 2.1 Color Palette
 
-Retain existing dark theme with refined amber accent:
+**Retain existing Light Theme** (aligned with current `global.css`):
 
 ```css
 :root {
-  /* Backgrounds */
-  --bg-deep: #0c0e14;        /* Deepest background */
-  --bg-primary: #12151e;       /* Primary panels */
-  --bg-secondary: #181c28;    /* Secondary surfaces */
-  --bg-elevated: #1e2332;     /* Elevated elements */
-  --bg-hover: rgba(255, 255, 255, 0.04);
-  --bg-active: rgba(255, 255, 255, 0.08);
+  /* Backgrounds - Light Mode */
+  --bg-deep: #f8fafc;           /* Deepest background */
+  --bg-primary: #ffffff;         /* Primary panels */
+  --bg-secondary: #f1f5f9;     /* Secondary surfaces */
+  --bg-elevated: #ffffff;       /* Elevated elements */
+  --bg-hover: #e2e8f0;          /* Hover state */
+  --bg-active: #cbd5e1;        /* Active/selected state */
 
   /* Borders */
-  --border-subtle: rgba(255, 255, 255, 0.06);
-  --border-default: rgba(255, 255, 255, 0.10);
-  --border-strong: rgba(255, 255, 255, 0.16);
+  --border-subtle: rgba(0, 0, 0, 0.04);
+  --border-default: rgba(0, 0, 0, 0.08);
+  --border-strong: rgba(0, 0, 0, 0.12);
 
   /* Text */
-  --text-primary: #e8eaed;
-  --text-secondary: #9aa0a6;
-  --text-muted: #5f6368;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+  --text-disabled: #cbd5e1;
 
-  /* Accent - Amber (保留并优化) */
-  --accent-primary: #d97706;    /* Primary amber */
+  /* Accent - Warm Amber */
+  --accent-primary: #d97706;     /* Primary amber */
   --accent-hover: #b45309;
-  --accent-muted: rgba(217, 119, 6, 0.12);
-  --accent-subtle: rgba(217, 119, 6, 0.08);
+  --accent-muted: rgba(217, 119, 6, 0.1);
+  --accent-subtle: rgba(217, 119, 6, 0.05);
 
   /* Status Colors */
-  --success: #34d399;
-  --warning: #fbbf24;
-  --error: #f87171;
-  --info: #60a5fa;
+  --success: #16a34a;
+  --warning: #d97706;
+  --error: #dc2626;
+  --info: #2563eb;
 
-  /* Agent Colors (新增 - 用于多Agent可视化) */
+  /* Agent Colors (用于多Agent可视化) */
   --agent-supervisor: #8b5cf6;   /* Purple - Supervisor */
   --agent-attractions: #f59e0b;  /* Amber - AttractionsAgent */
   --agent-route: #10b981;        /* Emerald - RouteAgent */
@@ -87,13 +88,13 @@ Retain existing dark theme with refined amber accent:
 
 ```css
 :root {
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
+  --font-ui: 'Plus Jakarta Sans', -apple-system, sans-serif;  /* Match existing */
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
 
   /* Font Sizes */
   --text-xs: 11px;
   --text-sm: 12px;
-  --text-base: 14px;
+  --text-base: 14px;           /* Match existing */
   --text-lg: 16px;
   --text-xl: 18px;
   --text-2xl: 24px;
@@ -112,10 +113,11 @@ Retain existing dark theme with refined amber accent:
   --space-6: 24px;
   --space-8: 32px;
 
+  /* Match existing global.css */
   --radius-sm: 4px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
-  --radius-xl: 16px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
 }
 ```
 
@@ -440,7 +442,104 @@ window.smartJournal.memory.onUpdate((entry) => {
 
 ---
 
-## 7. Technical Considerations
+## 7. API Specification
+
+### 7.1 Agent Event Streaming API
+
+**Endpoint:** `GET /api/agents/stream`
+
+**Description:** SSE endpoint for real-time agent status updates
+
+**Event Types:**
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `agent:start` | `{ agentId, agentName, timestamp }` | Agent begins processing |
+| `agent:thinking` | `{ agentId, thought, timestamp }` | Agent intermediate thought |
+| `agent:status` | `{ agentId, status, message, timestamp }` | Status update (running/success/error) |
+| `agent:complete` | `{ agentId, result, timestamp }` | Agent finished processing |
+| `agent:error` | `{ agentId, error, timestamp }` | Agent encountered error |
+
+**SSE Event Format:**
+```
+event: agent:status
+data: {"agentId": "route", "status": "running", "message": "计算最优路线中...", "timestamp": 1743324000}
+
+event: agent:complete
+data: {"agentId": "route", "result": {"route": [...]}, "timestamp": 1743324010}
+```
+
+**Frontend Subscription:**
+```typescript
+const eventSource = new EventSource('/api/agents/stream');
+
+eventSource.addEventListener('agent:status', (e) => {
+  const data = JSON.parse(e.data);
+  agentWorkbench.updateAgent(data.agentId, data.status, data.message);
+});
+
+eventSource.addEventListener('agent:thinking', (e) => {
+  const data = JSON.parse(e.data);
+  agentWorkbench.appendThought(data.agentId, data.thought);
+});
+```
+
+### 7.2 Memory API Endpoints
+
+**GET /api/memory**
+```json
+Response: {
+  "session": { /* current session context */ },
+  "longterm": {
+    "preferences": [...],
+    "past_trips": [...]
+  }
+}
+```
+
+**POST /api/memory/preferences**
+```json
+Request: { "key": "preferred_cuisine", "value": "川菜" }
+Response: { "success": true, "entry": { "key": "preferred_cuisine", "value": "川菜", "updated_at": "..." } }
+```
+
+**PUT /api/memory/preferences/:key**
+```json
+Request: { "value": "浙菜" }
+Response: { "success": true, "entry": { "key": "preferred_cuisine", "value": "浙菜", "updated_at": "..." } }
+```
+
+**DELETE /api/memory/preferences/:key**
+```json
+Response: { "success": true }
+```
+
+**GET /api/memory/export**
+```json
+Response: {
+  "preferences": [...],
+  "past_trips": [...],
+  "exported_at": "..."
+}
+```
+
+### 7.3 Feature Module Registration
+
+**POST /api/features/register** (Internal API for future features)
+```json
+Request: {
+  "id": "attractions",
+  "name": "景点推荐",
+  "icon": "🗺️",
+  "status": "coming_soon",
+  "panel": "sidebar"
+}
+Response: { "success": true, "module_id": "attractions" }
+```
+
+---
+
+## 8. Technical Considerations
 
 ### 7.1 Performance
 - Lazy load Inspector tabs content
@@ -459,7 +558,7 @@ window.smartJournal.memory.onUpdate((entry) => {
 
 ---
 
-## 8. Open Questions
+## 9. Open Questions
 
 | Item | Question | Decision |
 |------|----------|----------|
@@ -469,7 +568,7 @@ window.smartJournal.memory.onUpdate((entry) => {
 
 ---
 
-## 9. Appendix
+## 10. Appendix
 
 ### A. File Structure Changes
 
