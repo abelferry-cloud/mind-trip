@@ -627,6 +627,42 @@
   height: 18px;
 }
 
+/* Quick Action Chips */
+.input-quick-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.quick-action-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  font-size: 12px;
+  color: var(--text-secondary);
+  transition: all var(--transition-fast);
+}
+
+.quick-action-chip:hover:not(.disabled) {
+  background: var(--bg-hover);
+  border-color: var(--accent-primary);
+  color: var(--text-primary);
+}
+
+.quick-action-chip.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.quick-action-chip span:first-child {
+  font-size: 14px;
+}
+
 /* Inspector Styles - Horizontal Tabs Design */
 .inspector {
   display: flex;

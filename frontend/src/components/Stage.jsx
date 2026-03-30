@@ -563,6 +563,25 @@ const Stage = ({
               }
             }}
           />
+          {/* Quick Action Chips */}
+          <div className="input-quick-actions">
+            <button className="quick-action-chip" title="Attach files">
+              <span>📎</span>
+              <span>文件</span>
+            </button>
+            <button className="quick-action-chip" title="Quick destination">
+              <span>🎯</span>
+              <span>目的地</span>
+            </button>
+            <button className="quick-action-chip disabled" title="Attraction picker (coming soon)" disabled>
+              <span>📍</span>
+              <span>景点</span>
+            </button>
+            <button className="quick-action-chip disabled" title="Budget input (coming soon)" disabled>
+              <span>💰</span>
+              <span>预算</span>
+            </button>
+          </div>
           <button type="submit" className="send-btn" disabled={!input.trim() || isLoading}>
             <SendIcon />
           </button>
