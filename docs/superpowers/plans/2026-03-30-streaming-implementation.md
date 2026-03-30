@@ -67,7 +67,10 @@ class ChatStreamRequest(BaseModel):
 
 
 @router.post("/chat/stream")
-async def chat_stream(req: ChatStreamRequest, request: Request):
+async def chat_stream(
+    req: ChatStreamRequest,
+    background_tasks: BackgroundTasks,
+):
     """SSE 流式对话端点。
 
     流程:
@@ -82,8 +85,9 @@ async def chat_stream(req: ChatStreamRequest, request: Request):
     queue = stream_manager.register_session(req.session_id)
 
     # 启动后台任务处理 chat
+    # 注意: BackgroundTasks 必须作为路径操作函数参数传入才会执行
     chat_service = get_chat_service()
-    BackgroundTasks().add_task(
+    background_tasks.add_task(
         chat_service.chat_stream,
         req.user_id,
         req.session_id,
@@ -119,7 +123,7 @@ async def chat_stream(req: ChatStreamRequest, request: Request):
     )
 ```
 
-- [ ] **Step 2: Add async generator with proper SSE formatting**
+- [ ] **Step 2: Fix SSE data format**
 
 ```python
 async def sse_generator(session_id: str):
@@ -130,7 +134,7 @@ async def sse_generator(session_id: str):
     # 发送 retry 配置
     yield f"retry: 5000\n\n"
 
-    # 发送连接成功事件
+    # 发送连接成功事件 (空 JSON 对象)
     yield f"event: connected\ndata: {{}}\n\n"
 
     ping_interval = 15
@@ -450,6 +454,38 @@ async def llm_end(
     )
 ```
 
+- [ ] **Step 2b: Fix tool_end key name**
+
+The existing `tool_end` method emits with key `"result"`, but the frontend expects `"summary"`. Fix the existing `tool_end` method:
+
+```python
+# Current (wrong):
+async def tool_end(
+    self,
+    session_id: str,
+    tool: str,
+    result: Any,  # Wrong key name
+    duration_ms: int
+) -> None:
+    await self.emit(
+        session_id, "tool_end",
+        {"tool": tool, "result": result, "duration_ms": duration_ms}
+    )
+
+# Fixed:
+async def tool_end(
+    self,
+    session_id: str,
+    tool: str,
+    summary: Any,  # Correct key name per spec
+    duration_ms: int
+) -> None:
+    await self.emit(
+        session_id, "tool_end",
+        {"tool": tool, "summary": summary, "duration_ms": duration_ms}
+    )
+```
+
 - [ ] **Step 3: Test the stream manager**
 
 ```bash
@@ -487,9 +523,9 @@ git commit -m "feat: enhance StreamManager with llm_start and llm_end events"
 
 Modify `ToolCallingService.call_with_tools()` to:
 1. Accept optional `stream_callback` parameter
-2. Emit `tool_start` before executing tool
-3. Emit `tool_end` after tool completes
-4. Emit `iteration` at start of each loop
+2. Emit `iteration` at start of each loop
+3. Emit `tool_start` before executing tool
+4. Pass `stream_callback` to `_execute_tool_call`
 
 ```python
 # In call_with_tools method, add:
@@ -500,12 +536,9 @@ if stream_callback:
             tool_call["function"]["name"],
             tool_call["id"]
         )
-        tool_result = await self._execute_tool_call(tool_call)
-        await stream_callback.on_tool_end(
-            tool_call["function"]["name"],
-            tool_result,
-            duration_ms=0  # TODO: measure actual duration
-        )
+        # Pass callback to _execute_tool_call for error handling
+        tool_result = await self._execute_tool_call(tool_call, stream_callback)
+        # Note: on_tool_end is called inside _execute_tool_call on success
 ```
 
 - [ ] **Step 2: Modify _execute_tool_call to accept callback**
@@ -517,12 +550,12 @@ async def _execute_tool_call(
     stream_callback: Optional[Any] = None,
 ) -> Any:
     """Execute single tool call with optional streaming callback."""
-    # ... existing logic ...
+    # ... existing logic (parse args, get tool) ...
 
     try:
         # ... existing execution logic ...
 
-        # Notify callback on success
+        # Notify callback on success (only here, NOT in the loop)
         if stream_callback:
             await stream_callback.on_tool_end(func_name, result, duration_ms)
 
@@ -533,6 +566,8 @@ async def _execute_tool_call(
             await stream_callback.on_tool_error(func_name, str(e))
         return {"success": False, "error": str(e)}
 ```
+
+**IMPORTANT:** The callback is called ONLY inside `_execute_tool_call`, not in the outer loop. This avoids double-calling.
 
 - [ ] **Step 3: Update call_with_tools signature**
 
@@ -584,7 +619,8 @@ Modify `_call_openai_with_tools` to:
 1. Accept `stream_callback` parameter
 2. Emit `llm_start` before LLM call
 3. Stream tokens via `llm_new_token` callback (if using streaming)
-4. Emit `llm_end` with token counts after completion
+4. Pass `stream_callback` to ToolCallingService
+5. Emit `llm_end` with token counts after completion
 
 ```python
 async def _call_openai_with_tools(
@@ -595,7 +631,7 @@ async def _call_openai_with_tools(
 ) -> str:
     """使用 Tool Calling 调用 OpenAI 兼容 API with streaming."""
 
-    # ... existing setup ...
+    # ... existing setup (create client, insert system message, get tools) ...
 
     # Emit llm_start
     if stream_callback:
@@ -603,8 +639,11 @@ async def _call_openai_with_tools(
 
     # Use streaming if callback provided
     if stream_callback:
-        # Streaming response
-        accumulated_content = ""
+        # For streaming with tool calls, we need to handle chunks carefully
+        # First, do a non-streaming call to get tool_calls, then stream content
+        # OR use streaming but buffer until we see if there are tool_calls
+
+        # Approach: Use streaming for content only, handle tool_calls separately
         response = await client.chat.completions.create(
             model=self.settings.deepseek_model,
             messages=messages,
@@ -612,39 +651,83 @@ async def _call_openai_with_tools(
             stream=True,
         )
 
+        accumulated_content = ""
+        final_chunk = None  # Keep last chunk to check for tool_calls
+
         async for chunk in response:
+            final_chunk = chunk
             if chunk.choices[0].delta.content:
                 token = chunk.choices[0].delta.content
                 accumulated_content += token
                 await stream_callback.on_llm_new_token(token)
 
-        # After streaming, add to messages
+        # After streaming, parse tool_calls from final chunk
+        tool_calls = None
+        if final_chunk and hasattr(final_chunk.choices[0], 'message') and final_chunk.choices[0].message.tool_calls:
+            tool_calls = [
+                {"id": tc.id, "type": tc.type, "function": {"name": tc.function.name, "arguments": tc.function.arguments}}
+                for tc in final_chunk.choices[0].message.tool_calls
+            ]
+
         assistant_msg = {
             "role": "assistant",
             "content": accumulated_content,
         }
-        if hasattr(chunks[-1].choices[0], 'message') and chunks[-1].choices[0].message.tool_calls:
-            assistant_msg["tool_calls"] = [...]  # Parse tool calls
+        if tool_calls:
+            assistant_msg["tool_calls"] = tool_calls
 
         messages.append(assistant_msg)
 
-        # Emit llm_end with token counts
-        # Note: OpenAI streaming doesn't give us token counts mid-stream
-        # We estimate or get from usage in final chunk
+        # If there are tool_calls, execute them via ToolCallingService
+        # with the same stream_callback
+        if tool_calls:
+            # Re-use non-streaming tool execution for tool calls
+            # The ToolCallingService will handle callbacks
+            return await self._execute_tool_calls_with_callback(
+                messages, model, stream_callback
+            )
+
+        # Emit llm_end with token counts (from usage if available)
+        usage = getattr(response, 'usage', None) or {}
         if stream_callback:
             await stream_callback.on_llm_end(
-                total_tokens=0,  # Would need to track
-                prompt_tokens=0,
-                completion_tokens=0,
+                total_tokens=usage.get('total_tokens', 0),
+                prompt_tokens=usage.get('prompt_tokens', 0),
+                completion_tokens=usage.get('completion_tokens', 0),
             )
 
         return accumulated_content
     else:
-        # Non-streaming (existing behavior)
-        # ... existing code ...
+        # Non-streaming (existing behavior via ToolCallingService)
+        return await self._call_openai_with_tools_non_streaming(messages, system)
 ```
 
-- [ ] **Step 2: Update call_with_tools to pass callback**
+**Note:** The streaming path handles tool_calls by:
+1. Streaming the response content token by token
+2. If tool_calls appear in the final chunk, delegate to `_execute_tool_calls_with_callback`
+3. The ToolCallingService will execute tools and emit callbacks
+
+- [ ] **Step 2: Add helper method for tool call execution with callback**
+
+```python
+async def _execute_tool_calls_with_callback(
+    self,
+    messages: List[Dict[str, Any]],
+    model: str,
+    stream_callback,
+) -> str:
+    """Execute tool calls via ToolCallingService with streaming callback."""
+    tc_service = get_tool_calling_service()
+    # Pass stream_callback to ToolCallingService
+    return await tc_service.call_with_tools(
+        messages=messages,
+        tools=get_tools_schema(),
+        model=model,
+        stream_callback=stream_callback,  # Pass callback through
+    )
+```
+
+- [ ] **Step 3: Update call_with_tools to pass callback to _call_openai_with_tools**
 
 ```python
 async def call_with_tools(
