@@ -58,6 +58,20 @@
   --radius-md: 6px;
   --radius-lg: 8px;
   --radius-xl: 12px;
+
+  /* Agent Colors (for multi-agent visualization) */
+  --agent-supervisor: #8b5cf6;   /* Purple - Supervisor */
+  --agent-attractions: #f59e0b;  /* Amber - AttractionsAgent */
+  --agent-route: #10b981;         /* Emerald - RouteAgent */
+  --agent-budget: #ef4444;       /* Red - BudgetAgent */
+  --agent-food: #f97316;         /* Orange - FoodAgent */
+  --agent-hotel: #3b82f6;        /* Blue - HotelAgent */
+  --agent-preference: #ec4899;   /* Pink - PreferenceAgent */
+
+  /* Animation */
+  --transition-fast: 150ms ease;
+  --transition-normal: 250ms ease;
+  --transition-slow: 400ms ease;
 }
 
 /* Reset & Base */
