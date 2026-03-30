@@ -92,17 +92,37 @@ class StreamManager:
         )
 
     async def tool_end(
-        self, session_id: str, tool: str, result: Any, duration_ms: int
+        self, session_id: str, tool: str, summary: Any, duration_ms: int
     ) -> None:
         await self.emit(
             session_id, "tool_end",
-            {"tool": tool, "result": result, "duration_ms": duration_ms}
+            {"tool": tool, "summary": summary, "duration_ms": duration_ms}
         )
 
     async def tool_error(self, session_id: str, tool: str, error: str) -> None:
         await self.emit(
             session_id, "tool_error",
             {"tool": tool, "error": error}
+        )
+
+    async def llm_start(self, session_id: str, model: str) -> None:
+        await self.emit(session_id, "llm_start", {"model": model})
+
+    async def llm_end(
+        self,
+        session_id: str,
+        total_tokens: int,
+        prompt_tokens: int,
+        completion_tokens: int,
+    ) -> None:
+        await self.emit(
+            session_id,
+            "llm_end",
+            {
+                "total_tokens": total_tokens,
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
+            }
         )
 
     async def token_usage(
