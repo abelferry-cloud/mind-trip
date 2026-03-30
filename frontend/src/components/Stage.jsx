@@ -29,6 +29,23 @@ const Stage = ({
   const messagesEndRef = useRef(null)
   const messagesRef = useRef([])
 
+  // Typewriter animation: smoothly transfer contentBuffer to content
+  useEffect(() => {
+    const streamingMsgs = messages.filter(m => m.streaming && m.contentBuffer && m.contentBuffer !== m.content)
+    if (streamingMsgs.length === 0) return
+
+    const interval = setInterval(() => {
+      onUpdateMessage(session.id, messages.map(msg => {
+        if (msg.streaming && msg.contentBuffer && msg.contentBuffer !== msg.content) {
+          return { ...msg, content: msg.contentBuffer }
+        }
+        return msg
+      }))
+    }, 50)
+
+    return () => clearInterval(interval)
+  }, [messages, session?.id])
+
   // Keep messagesRef in sync with displayMessages
   useEffect(() => {
     messagesRef.current = displayMessages
@@ -72,6 +89,38 @@ const Stage = ({
     es.addEventListener('connected', () => {
       console.log('SSE connected')
     })
+
+    es.addEventListener('llm_start', (e) => {
+      const { model } = JSON.parse(e.data)
+      const updated = messagesRef.current.map(msg =>
+        msg.id === messageId
+          ? { ...msg, model }
+          : msg
+      )
+      onUpdateMessage(sessionId, updated)
+    })
+
+    es.addEventListener('llm_end', (e) => {
+      const usage = JSON.parse(e.data)
+      const updated = messagesRef.current.map(msg =>
+        msg.id === messageId
+          ? { ...msg, tokenUsage: usage }
+          : msg
+      )
+      onUpdateMessage(sessionId, updated)
+    })
+
+    es.addEventListener('model_switch', (e) => {
+      const { model } = JSON.parse(e.data)
+      const updated = messagesRef.current.map(msg =>
+        msg.id === messageId
+          ? { ...msg, model }
+          : msg
+      )
+      onUpdateMessage(sessionId, updated)
+    })
+
+    es.addEventListener('ping', () => {})  // No-op per spec
 
     es.addEventListener('llm_new_token', (e) => {
       const { token } = JSON.parse(e.data)
@@ -174,6 +223,26 @@ const Stage = ({
       onUpdateMessage(sessionId, updated)
       es.close()
     })
+  }
+
+  // Retry streaming for a specific message
+  const retryStream = (msgId) => {
+    const msg = messages.find(m => m.id === msgId)
+    if (msg && session) {
+      // Close existing connection
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close()
+      }
+      // Reset message state
+      const updated = messages.map(m =>
+        m.id === msgId
+          ? { ...m, content: '', contentBuffer: '', streaming: true, status: 'streaming', error: null }
+          : m
+      )
+      onUpdateMessage(session.id, updated)
+      // Restart streaming
+      startStreaming(session.id, msgId)
+    }
   }
 
   const handleSubmit = async (e) => {
@@ -368,7 +437,7 @@ const Stage = ({
                       {message.error && (
                         <div className="stream-error">
                           ⚠️ {message.error}
-                          <button onClick={() => {/* retry */}}>重新发送</button>
+                          <button onClick={() => retryStream(message.id)}>重新发送</button>
                         </div>
                       )}
                     </div>
