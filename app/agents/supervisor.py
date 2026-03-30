@@ -100,8 +100,11 @@ class PlanningAgent:
             agent_trace["agents"].append(agent_name)
             agent_trace["invocation_order"].append(len(agent_trace["agents"]))
             t = time.time()
+
+            # 发射 agent_switch 事件
             if stream_callback:
-                await stream_callback.on_phase_start(agent_name, "")
+                await stream_callback.on_agent_switch(agent_name)
+
             try:
                 result = await coro
                 agent_trace["durations_ms"].append(int((time.time() - t) * 1000))
@@ -227,6 +230,25 @@ class PlanningAgent:
         total_cost = budget_summary.get('attractions_total', 0) + budget_summary.get('food_total', 0) + budget_summary.get('hotel_total', 0) + budget_summary.get('transport_total', 0)
         answer += f"\n\n预算总计：{total_cost} 元"
 
+        # ========== 流式生成最终答案 ==========
+        if stream_callback:
+            # 构建总结 prompt
+            summary_prompt = self._build_summary_prompt(
+                city=city,
+                days=days,
+                budget=budget,
+                daily_routes=route_result.get("daily_routes", []),
+                attractions=attractions,
+                restaurants=restaurants,
+                budget_summary=budget_summary,
+                health_alerts=health_alerts,
+                preference_compliance=preference_compliance,
+            )
+
+            # 调用 LLM 流式生成最终答案
+            answer = await self.stream_generate(summary_prompt, stream_callback)
+        # ====================================
+
         return {
             "plan_id": plan_id,
             "city": city,
@@ -261,3 +283,60 @@ class PlanningAgent:
             if hardship in preferences.get("hardships", []):
                 notes.append(note)
         return notes
+
+    async def stream_generate(self, prompt: str, stream_callback) -> str:
+        """流式生成最终答案（通过 ModelRouter）。"""
+        from app.services.model import get_model_router
+        router = get_model_router()
+
+        # 发射 agent_switch
+        await stream_callback.on_agent_switch("Final Answer Generator")
+
+        # 构建消息
+        messages = [{"role": "user", "content": prompt}]
+
+        # 调用 ModelRouter（不带工具）
+        result = await router.call_with_tools(
+            messages=messages,
+            system="你是一个旅行规划助手，用简洁的语言生成最终行程方案。",
+            stream_callback=stream_callback,
+        )
+        return result
+
+    def _build_summary_prompt(
+        self,
+        city: str,
+        days: int,
+        budget: int,
+        daily_routes: List,
+        attractions: List,
+        restaurants: List,
+        budget_summary: Dict,
+        health_alerts: List,
+        preference_compliance: List,
+    ) -> str:
+        """构建总结 prompt，用于生成最终答案。"""
+        prompt = f"""请用自然语言生成一段简洁的旅行规划回复，包含以下信息：
+
+目的地：{city}
+天数：{days}天
+预算：{budget}元
+
+行程安排：
+"""
+        for i, route in enumerate(daily_routes[:3], 1):
+            prompt += f"第{i}天：{route.get('title', '自由活动')}\n"
+
+        prompt += f"""
+预算安排：
+- 景点门票：{budget_summary.get('attractions_total', 0)}元
+- 餐饮：{budget_summary.get('food_total', 0)}元
+- 交通：{budget_summary.get('transport_total', 0)}元
+"""
+        if health_alerts:
+            prompt += f"\n健康提醒：{'；'.join(health_alerts)}\n"
+        if preference_compliance:
+            prompt += f"偏好合规：{'；'.join(preference_compliance)}\n"
+
+        prompt += "\n请用简洁友好的语言生成回复。"
+        return prompt

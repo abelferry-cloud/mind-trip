@@ -42,6 +42,9 @@ class StreamManager:
         """
         queue = self._sessions.get(session_id)
         if queue is None:
+            # 调试：session 未注册时记录但不抛出异常
+            import logging
+            logging.warning(f"Session {session_id} not found for event {event_name}")
             return
 
         event_line = f"event: {event_name}\n"

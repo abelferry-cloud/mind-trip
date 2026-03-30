@@ -13,6 +13,8 @@ import json
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Optional
 
+from langchain_core.callbacks import AsyncCallbackHandler
+
 if TYPE_CHECKING:
     from app.services.streaming.stream_manager import StreamManager
 
@@ -193,3 +195,103 @@ class StreamCallbackHandler:
             summary = summary[:max_length] + "..."
 
         return summary
+
+
+class StreamCallbackHandlerAdapter:
+    """将旧的 StreamCallbackHandler 适配为 LangChain callback。
+
+    用于兼容旧的 non-LangChain 代码路径。
+    """
+
+    def __init__(self, stream_callback: Optional["StreamCallbackHandler"]):
+        self._cb = stream_callback
+
+    async def on_llm_start(self, model: str):
+        if self._cb:
+            await self._cb.on_llm_start(model)
+
+    async def on_llm_new_token(self, token: str):
+        if self._cb:
+            await self._cb.on_llm_new_token(token)
+
+    async def on_llm_end(self, total_tokens: int, prompt_tokens: int, completion_tokens: int):
+        if self._cb:
+            await self._cb.on_llm_end(total_tokens, prompt_tokens, completion_tokens)
+
+    async def on_tool_start(self, tool: str, tool_call_id: str):
+        if self._cb:
+            await self._cb.on_tool_start(tool, tool_call_id)
+
+    async def on_tool_end(self, tool: str, tool_result: Any, duration_ms: int):
+        if self._cb:
+            await self._cb.on_tool_end(tool, tool_result, duration_ms)
+
+
+class LangChainStreamCallbackHandler(AsyncCallbackHandler):
+    """LangChain 兼容的流式回调处理器。
+
+    将 LangChain 的 callback 事件转换为 StreamCallbackHandler 事件。
+    用于 ModelRouter 的 streaming 调用。
+    """
+
+    def __init__(self, stream_callback: "StreamCallbackHandler"):
+        self._cb = stream_callback
+        self._model_name = "deepseek"
+
+    async def on_chat_model_start(
+        self,
+        serialized,
+        messages,
+        *,
+        run_id,
+        parent_run_id=None,
+        **kwargs,
+    ):
+        """LLM 开始推理。"""
+        # 从 serialized 获取模型名称
+        model_name = "deepseek"
+        if serialized and hasattr(serialized, "get"):
+            model_id = serialized.get("id", [])
+            if model_id and len(model_id) > 0:
+                model_name = model_id[-1]
+
+        self._model_name = model_name
+        await self._cb.on_llm_start(model_name)
+        # 发射 agent_switch
+        await self._cb.on_phase_start("LLM 推理", f"使用 {model_name} 模型")
+
+    async def on_llm_new_token(
+        self,
+        token: str,
+        *,
+        run_id,
+        parent_run_id=None,
+        **kwargs,
+    ):
+        """每个新 token。"""
+        await self._cb.on_llm_new_token(token)
+
+    async def on_llm_end(
+        self,
+        response,
+        *,
+        run_id,
+        parent_run_id=None,
+        **kwargs,
+    ):
+        """LLM 生成完成。"""
+        # 尝试从 response 获取 token usage
+        total_tokens = 0
+        prompt_tokens = 0
+        completion_tokens = 0
+
+        # LangChain 在流式结束时可能没有 usage_metadata
+        # 尝试从 llm_output 获取
+        if hasattr(response, "llm_output") and response.llm_output:
+            usage = response.llm_output.get("token_usage", {})
+            if usage:
+                total_tokens = usage.get("total_tokens", 0)
+                prompt_tokens = usage.get("prompt_tokens", 0)
+                completion_tokens = usage.get("completion_tokens", 0)
+
+        await self._cb.on_llm_end(total_tokens, prompt_tokens, completion_tokens)
