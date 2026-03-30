@@ -554,12 +554,12 @@ const featureRegistry = {
 - Virtualize message list for long conversations
 - Debounce resize handlers (16ms)
 
-### 7.2 Accessibility
+### 8.2 Accessibility
 - Maintain keyboard navigation
 - ARIA labels for all interactive elements
 - Focus management for modal/panel transitions
 
-### 7.3 State Management
+### 8.3 State Management
 - Local component state for UI interactions
 - React Context for shared state (theme, user preferences)
 - Server state via API calls (sessions, messages, memory)
