@@ -1,5 +1,5 @@
 import pytest
-from app.services.stream_manager import StreamManager, get_stream_manager
+from app.services.streaming import StreamManager, get_stream_manager
 
 @pytest.mark.asyncio
 async def test_singleton():

@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from app.services.stream_callback import StreamCallbackHandler
+from app.services.streaming import StreamCallbackHandler
 
 
 @pytest.fixture

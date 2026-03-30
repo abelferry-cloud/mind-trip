@@ -3,8 +3,8 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 import json
 
-from app.services.tool_calling_service import ToolCallingService
-from app.services.tool_registry import register_tool
+from app.services.tools import ToolCallingService
+from app.services.tools import register_tool
 
 
 @pytest.fixture
