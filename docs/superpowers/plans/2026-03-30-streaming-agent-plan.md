@@ -29,51 +29,25 @@ frontend/
 
 ---
 
-## Task 1: 扩展 StreamCallbackHandler
+## Task 1: 扩展 StreamCallbackHandler 和 StreamManager
 
 **Files:**
 - Modify: `app/services/stream_callback.py`
+- Modify: `app/services/stream_manager.py`
 
-- [ ] **Step 1: 添加 on_phase_start 方法**
+- [ ] **Step 1: 修改 stream_manager.agent_switch() 支持 description 参数**
 
-在 `StreamCallbackHandler` 类中添加：
-
-```python
-async def on_phase_start(self, phase: str, description: str = "") -> None:
-    """Agent 阶段开始，发射 agent_switch 事件。"""
-    await self._stream_manager.emit(
-        self._session_id,
-        "agent_switch",
-        {"agent": phase, "description": description}
-    )
-```
-
-- [ ] **Step 2: 添加 on_skill_start 方法（复用现有 on_tool_start）**
-
-确认现有 `on_tool_start` 已通过 stream_manager.tool_start 发射 `tool_start` 事件。如需要，新增别名方法：
+当前 `stream_manager.agent_switch(session_id, agent)` 只接受 2 个参数。需要扩展为支持 `description`：
 
 ```python
-async def on_skill_start(self, skill: str, tool_call_id: str) -> None:
-    """Skill/Tool 开始调用。"""
-    await self._stream_manager.tool_start(self._session_id, skill, tool_call_id)
+# 修改 stream_manager.py 第70-71行
+async def agent_switch(self, session_id: str, agent: str, description: str = "") -> None:
+    await self.emit(session_id, "agent_switch", {"agent": agent, "description": description})
 ```
 
-- [ ] **Step 3: 添加 on_skill_end 方法**
+- [ ] **Step 2: 添加 stream_manager.skill_start 和 skill_end 方法**
 
-```python
-async def on_skill_end(
-    self,
-    skill: str,
-    summary: Any,
-    duration_ms: int,
-) -> None:
-    """Skill/Tool 结束。"""
-    await self._stream_manager.tool_end(self._session_id, skill, summary, duration_ms)
-```
-
-- [ ] **Step 4: 确认 stream_manager.skill_start 存在**
-
-检查 `stream_manager.py`，确认有 `skill_start` 方法。如果没有，添加：
+在 `stream_manager.py` 中添加（使用 skill_ 前缀，与设计 spec 一致）：
 
 ```python
 async def skill_start(
@@ -83,13 +57,52 @@ async def skill_start(
         session_id, "skill_start",
         {"skill": skill, "tool_call_id": tool_call_id}
     )
+
+async def skill_end(
+    self, session_id: str, skill: str, summary: Any, duration_ms: int
+) -> None:
+    await self.emit(
+        session_id, "skill_end",
+        {"skill": skill, "summary": summary, "duration_ms": duration_ms}
+    )
 ```
 
-- [ ] **Step 5: 提交**
+- [ ] **Step 3: 添加 on_phase_start 方法到 StreamCallbackHandler**
+
+在 `StreamCallbackHandler` 类中添加：
+
+```python
+async def on_phase_start(self, phase: str, description: str = "") -> None:
+    """Agent 阶段开始，发射 agent_switch 事件。"""
+    await self._stream_manager.agent_switch(self._session_id, phase, description)
+```
+
+- [ ] **Step 4: 添加 on_skill_start 和 on_skill_end 方法**
+
+```python
+async def on_skill_start(self, skill: str, tool_call_id: str) -> None:
+    """Skill/Tool 开始调用，发射 skill_start 事件。"""
+    await self._stream_manager.skill_start(self._session_id, skill, tool_call_id)
+
+async def on_skill_end(
+    self,
+    skill: str,
+    summary: Any,
+    duration_ms: int,
+) -> None:
+    """Skill/Tool 结束，发射 skill_end 事件。"""
+    await self._stream_manager.skill_end(self._session_id, skill, summary, duration_ms)
+```
+
+- [ ] **Step 5: 确认 stream_manager.emit() 支持任意事件名**
+
+确认 `emit()` 方法存在且可接受任意 `event_name`（已确认，第30-49行）。
+
+- [ ] **Step 6: 提交**
 
 ```bash
 git add app/services/stream_callback.py app/services/stream_manager.py
-git commit -m "feat(stream): add on_phase_start/on_skill_start callbacks"
+git commit -m "feat(stream): add skill_start/skill_end and agent_switch with description"
 ```
 
 ---
@@ -148,15 +161,54 @@ if stream_callback:
     await stream_callback.on_phase_start("BudgetAgent", "验证预算")
 ```
 
-- [ ] **Step 3: 在 trace() 包装器中发射 agent_switch**
+- [ ] **Step 3: 修改 trace() 包装器，接受 stream_callback 参数**
 
-修改 `trace()` 函数：
+找到 `supervisor.py` 第92-104行的 `trace()` 函数，将其扩展为接受 `stream_callback`：
 
 ```python
-async def trace(agent_name: str, coro):
+async def trace(agent_name: str, coro, stream_callback=None):
+    """包装器用于计时 Agent 调用，并可选地发射 agent_switch 事件。"""
+    agent_trace["agents"].append(agent_name)
+    agent_trace["invocation_order"].append(len(agent_trace["agents"]))
+    t = time.time()
     if stream_callback:
         await stream_callback.on_phase_start(agent_name, "")
-    # ... 原有逻辑
+    try:
+        result = await coro
+        agent_trace["durations_ms"].append(int((time.time() - t) * 1000))
+        return result
+    except Exception as e:
+        agent_trace["durations_ms"].append(int((time.time() - t) * 1000))
+        agent_trace["errors"].append({"agent": agent_name, "error": str(e)})
+        raise
+```
+
+- [ ] **Step 4: 找到所有调用 trace() 的地方**
+
+确认 `supervisor.py` 中所有 `await trace(...)` 调用，在 `plan()` 方法内传递 `stream_callback` 参数（当前有4处，见下方 Step 5）。
+
+- [ ] **Step 5: 传递 stream_callback 给所有 trace() 调用**
+
+修改 `plan()` 方法内的 4 处 `await trace(...)` 调用，传递 `stream_callback`：
+
+```python
+# 第1处: PreferenceAgent
+pref_result = await trace("PreferenceAgent",
+    self.pref_agent.parse_and_update(user_id, message), stream_callback)
+
+# 第2处: TravelPlanner search
+search_result, budget_result = await asyncio.gather(
+    trace("TravelPlanner Agent (search)", self.travel_agent.search_all(...), stream_callback),
+    trace("Budget Agent", self.budget_agent.calculate(...), stream_callback)
+)
+
+# 第3处: TravelPlanner route
+route_result = await trace("TravelPlanner Agent (route)",
+    self.travel_agent.plan_routes(attractions, {...}), stream_callback)
+
+# 第4处: BudgetAgent validation
+budget_check = await trace("BudgetAgent (validation)",
+    self.budget_agent.check_plan(budget, plan_summary), stream_callback)
 ```
 
 - [ ] **Step 4: 提交**
@@ -168,42 +220,74 @@ git commit -m "feat(supervisor): emit agent_switch events via stream_callback"
 
 ---
 
-## Task 3: 修改 chat_service.py 传递 callback
+## Task 3: 修改 chat_service.py 使用 Supervisor 路由
 
 **Files:**
 - Modify: `app/services/chat_service.py`
+- Import: `app.agents.supervisor.PlanningAgent`
 
-- [ ] **Step 1: 修改 chat_stream() 方法**
+**关键架构决策**：当前 `chat_stream()` 直接调用 `ModelRouter.call_with_tools()`，不经过 Supervisor。为了实现 Agent 级别的流式可视化，需要改为通过 `SupervisorAgent.plan()` 路由。
 
-在 `chat_stream()` 中，`SupervisorAgent` 调用时传递 `callback`：
+- [ ] **Step 1: 分析 chat_stream() 当前实现**
+
+查看 `app/services/chat_service.py` 第117-183行 `chat_stream()` 方法。当前它：
+1. 加载 system prompt
+2. 加载 session memory
+3. 调用 `ModelRouter.call_with_tools()`
+4. 不经过任何 Agent 协调
+
+- [ ] **Step 2: 添加 PlanningAgent 到 chat_stream()**
+
+在 `chat_stream()` 方法中添加 `PlanningAgent` 调用：
 
 ```python
-# 找到原来的 Supervisor 调用
-supervisor = PlanningAgent()
-result = await supervisor.plan(user_id, session_id, message)
+from app.agents.supervisor import PlanningAgent
 
-# 改为
-supervisor = PlanningAgent()
-result = await supervisor.plan(
-    user_id, session_id, message, stream_callback=callback
-)
+# 在 try 块内（大约第163行）
+try:
+    # 原有: answer = await self._router.call_with_tools(...)
+    # 改为: 使用 Supervisor 路由
+    supervisor = PlanningAgent()
+    result = await supervisor.plan(
+        user_id=user_id,
+        session_id=session_id,
+        message=message,
+        stream_callback=callback,  # 传递流式回调
+    )
+    answer = result.get("answer", "")  # Supervisor 返回包含 answer 的 dict
 ```
 
-注意：当前 `chat_stream` 不使用 `Supervisor`，而是直接调用 `ModelRouter`。需要确认是否需要引入 Supervisor。如果当前流程不经过 Supervisor，则需要在 ModelRouter/tool_calling 链路中集成 agent_switch。
+注意：`SupervisorAgent.plan()` 返回的是包含 `answer`、`daily_routes`、`budget_summary` 等字段的完整规划结果，不是简单的字符串。
 
-- [ ] **Step 2: 确认当前 chat_stream 的调用链路**
+- [ ] **Step 3: 处理 Supervisor 返回值**
 
-当前 `chat_stream` 调用 `ModelRouter.call_with_tools()` → `ToolCallingService.call_with_tools()`，不经过 Supervisor。需要决定：
-1. 如果用 Supervisor：chat_stream 需要使用 Supervisor.plan()
-2. 如果保持 ModelRouter：需要在 ModelRouter 内部发射 agent_switch
+Supervisor.plan() 返回结构：
+```python
+{
+    "plan_id": "...",
+    "city": "...",
+    "answer": "已为您规划北京3天行程...",
+    "daily_routes": [...],
+    "budget_summary": {...},
+    # ...
+}
+```
 
-**建议**：由于 SupervisorAgent 有完整的 trace() 和阶段管理，且已实现了流式回调集成，最小改动方案是让 `chat_stream` 调用 `Supervisor.plan(callback)` 而不是直接调用 ModelRouter。
+需要从中提取 `answer` 字段作为最终回复：
 
-- [ ] **Step 3: 提交**
+```python
+answer = result.get("answer", "")
+```
+
+- [ ] **Step 4: 确认 PlanningAgent 的 plan() 接受 stream_callback**
+
+修改 `app/agents/supervisor.py` 中 `plan()` 签名（见 Task 2 Step 1）。
+
+- [ ] **Step 5: 提交**
 
 ```bash
 git add app/services/chat_service.py
-git commit -m "feat(chat_service): pass stream_callback to Supervisor"
+git commit -m "feat(chat_service): route through Supervisor for agent streaming"
 ```
 
 ---
@@ -244,7 +328,7 @@ es.addEventListener('agent_switch', (e) => {
 
 注意：`contentBuffer: '', content: ''` 实现"新 Agent 接管时清空输出"。
 
-- [ ] **Step 3: 添加 skill_start 事件处理**
+- [ ] **Step 3: 添加 skill_start 事件处理（Supervisor 规划阶段发出）**
 
 ```javascript
 es.addEventListener('skill_start', (e) => {
@@ -257,6 +341,8 @@ es.addEventListener('skill_start', (e) => {
   onUpdateMessage(sessionId, updated)
 })
 ```
+
+注意：ToolCallingService 发出的是 `tool_start`（已存在），Supervisor 的规划阶段发出的是 `skill_start`。两者都更新 `currentSkill` 字段，实现统一展示。
 
 - [ ] **Step 4: 修改 streaming-status-panel 渲染**
 
