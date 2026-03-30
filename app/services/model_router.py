@@ -243,9 +243,17 @@ class ModelRouter:
 
         # If there are tool_calls, execute them via ToolCallingService
         if tool_calls:
-            return await self._execute_tool_calls_with_callback(
+            result = await self._execute_tool_calls_with_callback(
                 messages, self.settings.deepseek_model, stream_callback
             )
+            # Emit llm_end after tool execution completes
+            if stream_callback:
+                await stream_callback.on_llm_end(
+                    total_tokens=0,  # Tool execution doesn't give us token counts
+                    prompt_tokens=0,
+                    completion_tokens=0,
+                )
+            return result
 
         # Emit llm_end with token counts (from usage if available)
         usage = getattr(response, 'usage', None) or {}
