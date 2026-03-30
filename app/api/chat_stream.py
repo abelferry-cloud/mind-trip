@@ -6,12 +6,10 @@ POST /api/chat/stream
 - 通过 StreamManager 获取 session 对应的事件队列
 - 心跳 ping (15s interval)
 """
-from fastapi import APIRouter, Request, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from typing import Optional
 import asyncio
-import json
 
 from app.services.stream_manager import get_stream_manager
 from app.services.chat_service import get_chat_service
@@ -56,21 +54,25 @@ async def chat_stream(
 
     # SSE 事件流生成器
     async def event_generator():
-        # 发送初始连接事件
-        yield f"event: connected\ndata: {{}}\n\n"
+        try:
+            # 发送初始连接事件
+            yield f"event: connected\ndata: {{}}\n\n"
 
-        # 心跳间隔 (15s)
-        ping_interval = 15
+            # 心跳间隔 (15s)
+            ping_interval = 15
 
-        while True:
-            try:
-                event = await asyncio.wait_for(queue.get(), timeout=ping_interval)
-                yield event
-            except asyncio.TimeoutError:
-                # 发送心跳
-                yield f": ping\n\n"
-            except GeneratorExit:
-                break
+            while True:
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=ping_interval)
+                    yield event
+                except asyncio.TimeoutError:
+                    # 发送心跳
+                    yield f": ping\n\n"
+        except GeneratorExit:
+            pass
+        finally:
+            # Clean up session on exit
+            stream_manager.unregister_session(req.session_id)
 
     return StreamingResponse(
         event_generator(),
