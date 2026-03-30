@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 
+import AgentWorkbench from './AgentWorkbench'
 import { setSessionTitle } from '../utils/sessionStorage'
 
 const Stage = ({
@@ -24,10 +25,29 @@ const Stage = ({
   const [isLoading, setIsLoading] = useState(false)
   const [expandedThoughts, setExpandedThoughts] = useState({})
   const [streamingMsgId, setStreamingMsgId] = useState(null)
+  const [agentWorkbenchExpanded, setAgentWorkbenchExpanded] = useState(false)
+  const [agentEvents, setAgentEvents] = useState([])
   const eventSourceRef = useRef(null)
   const typewriterRef = useRef(null)
   const messagesEndRef = useRef(null)
   const messagesRef = useRef([])
+
+  // displayMessages derived before useEffect references it
+  const displayMessages = messages.length > 0 ? messages : (session?.messages || [])
+
+  // Keep messagesRef in sync with displayMessages
+  useEffect(() => {
+    messagesRef.current = displayMessages
+  }, [displayMessages])
+
+  // EventSource cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close()
+      }
+    }
+  }, [])
 
   // Typewriter animation: smoothly transfer contentBuffer to content
   useEffect(() => {
@@ -50,8 +70,6 @@ const Stage = ({
   useEffect(() => {
     messagesRef.current = displayMessages
   }, [displayMessages])
-
-  const displayMessages = messages.length > 0 ? messages : (session?.messages || [])
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -471,12 +489,21 @@ const Stage = ({
                   </>
                 )}
 
-                <div className="message-meta">
-                  <span>{formatTime(message.timestamp)}</span>
-                  {message.modelUsed && (
-                    <span>via {message.modelUsed}</span>
-                  )}
-                </div>
+                {message.role === 'assistant' && (
+                  <div className="message-meta">
+                    <button
+                      className={`thoughts-toggle ${agentWorkbenchExpanded ? 'expanded' : ''}`}
+                      onClick={() => setAgentWorkbenchExpanded(!agentWorkbenchExpanded)}
+                    >
+                      <ChevronIcon />
+                      <span>工作台</span>
+                    </button>
+                    <span style={{ marginLeft: '8px' }}>{formatTime(message.timestamp)}</span>
+                    {message.modelUsed && (
+                      <span>via {message.modelUsed}</span>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           ))
@@ -504,6 +531,14 @@ const Stage = ({
 
         <div ref={messagesEndRef} />
       </div>
+
+      {agentWorkbenchExpanded && (
+        <AgentWorkbench
+          events={agentEvents}
+          isExpanded={agentWorkbenchExpanded}
+          onToggle={() => setAgentWorkbenchExpanded(false)}
+        />
+      )}
 
       {/* Input Resize Handle */}
       <div
