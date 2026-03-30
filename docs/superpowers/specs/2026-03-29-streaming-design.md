@@ -89,14 +89,14 @@
 | `model_switch` | 模型切换时（fallback） | `{model: "claude", reason: "rate_limit"}` |
 | `iteration` | 工具调用循环次数 | `{iteration: 1, max_iterations: 10}` |
 | `llm_start` | LLM 开始推理 | `{model: "deepseek-chat"}` |
-| `llm_new_token` | 每个新 token | `{token: "你", ...}` |
+| `llm_new_token` | 每个新 token（打字机） | `{token: "你", ...}` |
 | `llm_end` | LLM 生成完成 | `{total_tokens: 200, ...}` |
 | `tool_start` | 工具开始调用 | `{tool: "search_attractions", tool_call_id: "call_xxx"}` |
 | `tool_end` | 工具调用完成 | `{tool: "search_attractions", summary: "找到 12 个景点", duration_ms: 120}` |
 | `tool_error` | 工具执行失败 | `{tool: "search_attractions", error: "timeout"}` |
 | `token_usage` | Token 统计 | `{prompt_tokens: 100, completion_tokens: 50, total_tokens: 150, cost_usd: 0.002}` |
-| `reasoning_step` | 推理步骤 | `{step: "分析用户偏好：深度体验型"}` |
-| `content_chunk` | 内容片段（兼容） | `{content: "正在为你规划..."}` |
+| `reasoning_step` | 推理步骤（LLM 思考过程） | `{step: "分析用户偏好：深度体验型"}` |
+| `iteration` | 工具调用循环次数变化 | `{iteration: 1, max_iterations: 10}` |
 | `final` | 完成 | `{answer: "完整回复"}` |
 | `error` | 错误 | `{error: "错误信息", recoverable: true}` |
 | `ping` | 心跳 | `{}` |
@@ -119,25 +119,46 @@ class StreamCallbackHandler(BaseCallbackHandler):
 
     实现以下方法：
     - on_llm_start: 发射 llm_start 事件
-    - on_llm_new_token: 发射 llm_new_token + content_chunk 事件
+    - on_llm_new_token: 发射 llm_new_token 事件（用于打字机效果）
     - on_llm_end: 发射 llm_end + token_usage 事件
     - on_tool_start: 发射 tool_start 事件
     - on_tool_end: 发射 tool_end 事件（结果截取为摘要）
+    - on_reasoning_step: 发射 reasoning_step 事件（LLM 思考过程）
+    - on_iteration: 发射 iteration 事件（工具调用循环次数）
     """
+
+    def __init__(self, stream_manager: StreamManager, session_id: str):
+        self._stream_manager = stream_manager
+        self._session_id = session_id
+        self._iteration = 0
 
     async def on_tool_end(
         self,
         name: str,
         tool_result: Any,
         duration_ms: int,
-        session_id: str,
     ) -> None:
         """工具结束时的回调。
 
         将完整结果截取为摘要，避免 SSE 传输过大数据。
         """
         summary = self._summarize_result(tool_result)
-        await self._stream_manager.tool_end(session_id, name, summary, duration_ms)
+        await self._stream_manager.tool_end(self._session_id, name, summary, duration_ms)
+
+    async def on_reasoning_step(self, step: str) -> None:
+        """发射 LLM 推理步骤。
+
+        当 LLM 输出思考过程（如 <think>...</think> 标签内容）时触发。
+        """
+        await self._stream_manager.reasoning_step(self._session_id, step)
+
+    async def on_iteration(self, iteration: int, max_iterations: int) -> None:
+        """发射工具调用循环次数。
+
+        iteration 从 1 开始计数，max_iterations 来自配置（默认 10）。
+        """
+        self._iteration = iteration
+        await self._stream_manager.iteration(self._session_id, iteration, max_iterations)
 ```
 
 ### 3.5 Token 统计
@@ -230,7 +251,7 @@ const streamingMessage = {
 const eventHandlers = {
   'agent_switch': (data) => updateMessage(msgId, { agent: data.agent }),
   'model_switch': (data) => updateMessage(msgId, { model: data.model }),
-  'iteration': (data) => updateMessage(msgId, { ...data }),
+  'iteration': (data) => updateMessage(msgId, { iteration: data.iteration, max_iterations: data.max_iterations }),
   'llm_start': (data) => updateMessage(msgId, { model: data.model }),
   'llm_new_token': (data) => typewriterAppend(msgId, data.token),
   'llm_end': (data) => updateMessage(msgId, { tokenUsage: data }),
@@ -246,12 +267,16 @@ const eventHandlers = {
   }),
   'token_usage': (data) => updateMessage(msgId, { tokenUsage: data }),
   'reasoning_step': (data) => appendReasoningStep(msgId, data.step),
-  'content_chunk': (data) => typewriterAppend(msgId, data.content),
   'final': (data) => finalizeMessage(msgId, data.answer),
   'error': (data) => handleStreamError(msgId, data),
   'ping': () => {}  // 心跳，无需处理
 }
 ```
+
+**说明：**
+- `llm_new_token` 用于逐字打字机效果
+- `reasoning_step` 用于展示 LLM 的思考过程（如"分析用户偏好..."）
+- `iteration` 更新工具调用循环的当前次数
 
 ### 4.5 优雅降级
 
@@ -277,6 +302,9 @@ const eventHandlers = {
 | 文件 | 描述 |
 |------|------|
 | `frontend/src/components/Stage.jsx` | 添加 EventSource 连接、状态面板渲染、打字机效果逻辑 |
+| `frontend/src/App.jsx` | 如需扩展流式状态管理（如 streaming state slice），在此添加 |
+
+**状态管理说明：** 当前消息状态通过 `session.messages` 数组管理。流式消息作为特殊消息对象（`streaming: true`）追加到此数组。新增字段（`toolCalls`, `tokenUsage`, `reasoningSteps`, `agent`, `model`, `iteration`）直接添加到消息对象，无需新建独立 state slice。
 
 ---
 
@@ -294,11 +322,15 @@ StreamCallbackHandler 初始化
     ▼
 ToolCallingService.call_with_tools()
     │
+    ├── on_iteration(1, 10) → emit SSE: iteration
+    │
     ├── on_tool_start → emit SSE: tool_start
     │
     ├── 执行工具 (120ms)
     │
     ├── on_tool_end → emit SSE: tool_end (摘要)
+    │
+    ├── on_reasoning_step("分析用户偏好...") → emit SSE: reasoning_step
     │
     └── 继续 LLM 循环...
     │
@@ -307,12 +339,16 @@ LLM 开始生成
     │
     ├── on_llm_start → emit SSE: llm_start
     │
-    ├── on_llm_new_token → emit SSE: llm_new_token + content_chunk (每个 token)
+    ├── on_llm_new_token → emit SSE: llm_new_token (每个 token，打字机)
     │
     ├── on_llm_end → emit SSE: llm_end + token_usage
     │
     ▼ emit SSE: final, {answer: "..."}
 ```
+
+**说明：**
+- `on_reasoning_step` 在每次工具调用结束后、LLM 生成前触发，捕获 LLM 的中间推理过程
+- `on_iteration` 在每次工具调用循环开始时触发，`max_iterations` 来自配置（默认 10，可配置）
 
 ---
 
