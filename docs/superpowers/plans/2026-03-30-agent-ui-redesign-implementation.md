@@ -16,18 +16,56 @@
 - `frontend/src/components/AgentWorkbench.jsx`
 - `frontend/src/components/MemoryTab.jsx`
 - `frontend/src/components/FeatureCards.jsx`
-- `frontend/src/hooks/useAgentEvents.js`
 
 ### Files to Modify
-- `frontend/src/App.jsx:1-274` - Add new state and integrate components
+- `frontend/src/App.jsx` - Add new state and integrate components
 - `frontend/src/components/Stage.jsx` - Integrate AgentWorkbench, enhance messages
 - `frontend/src/components/Inspector.jsx` - Add Memory tab support
 - `frontend/src/components/Sidebar.jsx` - Integrate FeatureCards
-- `frontend/src/styles/App.css:1-1087` - Add new component styles
+- `frontend/src/styles/App.css` - Add new component styles and CSS design tokens
 
 ---
 
 ## Phase 1: UI Polish & Core Enhancement
+
+### Task 0: Add CSS Design Tokens to App.css
+
+**Files:**
+- Modify: `frontend/src/styles/App.css` - Add CSS variables for agent colors
+
+- [ ] **Step 1: Add agent color CSS variables to global.css**
+
+Open `frontend/src/styles/global.css` and add after existing CSS variables:
+
+```css
+/* Agent Colors (for multi-agent visualization) */
+--agent-supervisor: #8b5cf6;   /* Purple - Supervisor */
+--agent-attractions: #f59e0b;  /* Amber - AttractionsAgent */
+--agent-route: #10b981;         /* Emerald - RouteAgent */
+--agent-budget: #ef4444;       /* Red - BudgetAgent */
+--agent-food: #f97316;         /* Orange - FoodAgent */
+--agent-hotel: #3b82f6;        /* Blue - HotelAgent */
+--agent-preference: #ec4899;   /* Pink - PreferenceAgent */
+
+/* Animation */
+--transition-fast: 150ms ease;
+--transition-normal: 250ms ease;
+--transition-slow: 400ms ease;
+```
+
+- [ ] **Step 2: Commit CSS tokens**
+
+```bash
+git add frontend/src/styles/global.css
+git commit -m "feat(frontend): add agent color CSS variables
+
+- Add --agent-* color palette for 7 agents
+- Add animation transition variables
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"
+```
+
+---
 
 ### Task 1: Create AgentWorkbench Component
 
@@ -81,7 +119,7 @@ const AgentWorkbench = ({ events = [], isExpanded = false, onToggle }) => {
           }));
           break;
         case 'tool_start':
-          setCurrentStep(`${event.tool}: Starting...`);
+          setCurrentStep(`${event.agent || event.tool}: Starting...`);
           break;
         case 'tool_end':
           setCurrentStep(`${event.tool}: Completed in ${event.duration_ms}ms`);
@@ -90,15 +128,17 @@ const AgentWorkbench = ({ events = [], isExpanded = false, onToggle }) => {
           setCurrentStep(event.step);
           break;
         case 'llm_end':
-          // Mark current agent as success
-          Object.keys(agents).forEach(key => {
-            if (agents[key].status === 'running') {
-              setAgents(prev => ({
-                ...prev,
-                [key]: { ...prev[key], status: 'success' }
-              }));
-            }
+          // Mark all running agents as success using functional setState
+          setAgents(prev => {
+            const updated = { ...prev };
+            Object.keys(updated).forEach(key => {
+              if (updated[key].status === 'running') {
+                updated[key] = { ...updated[key], status: 'success' };
+              }
+            });
+            return updated;
           });
+          break;
           break;
         case 'error':
           setCurrentStep(`Error: ${event.error}`);
@@ -536,13 +576,29 @@ const MemoryTab = ({ userId = 'default' }) => {
 
       {/* Actions */}
       <div className="memory-actions">
-        <button className="memory-action-btn" onClick={() => handleAddPreference('new_key', 'new_value')}>
+        <button className="memory-action-btn" onClick={() => {
+          const key = window.prompt('Enter preference key (e.g., preferred_cuisine):');
+          if (key) {
+            const value = window.prompt('Enter preference value:');
+            if (value) handleAddPreference(key, value);
+          }
+        }}>
           + Add Preference
         </button>
-        <button className="memory-action-btn secondary">
-          Edit Memory
+        <button className="memory-action-btn secondary" onClick={() => {
+          const key = window.prompt('Enter preference key to edit:');
+          if (key && preferences[key]) {
+            const value = window.prompt('Enter new value:', preferences[key]);
+            if (value) handleAddPreference(key, value);
+          }
+        }}>
+          Edit
         </button>
-        <button className="memory-action-btn secondary">
+        <button className="memory-action-btn secondary" onClick={() => {
+          const data = JSON.stringify({ preferences, history_trips }, null, 2);
+          console.log('Memory Export:', data);
+          alert('Memory data logged to console. Backend export endpoint coming soon.');
+        }}>
           Export
         </button>
       </div>
@@ -1129,73 +1185,6 @@ Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"
 
 ---
 
-## Phase 4: SSE Event Integration
-
-### Task 6: Create useAgentEvents Hook
-
-**Files:**
-- Create: `frontend/src/hooks/useAgentEvents.js`
-- Modify: `frontend/src/components/Stage.jsx:1-50`
-
-- [ ] **Step 1: Create useAgentEvents.js**
-
-```javascript
-// frontend/src/hooks/useAgentEvents.js
-import { useState, useEffect, useRef } from 'react';
-
-const useAgentEvents = (sessionId) => {
-  const [events, setEvents] = useState([]);
-  const [connected, setConnected] = useState(false);
-  const eventSourceRef = useRef(null);
-
-  useEffect(() => {
-    if (!sessionId) return;
-
-    // Note: The actual SSE connection is handled via EventSource in the chat component
-    // This hook is a placeholder for future standalone agent event subscription
-    // For now, events come through the chat_stream SSE connection
-
-    return () => {
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-      }
-    };
-  }, [sessionId]);
-
-  const addEvent = (event) => {
-    setEvents(prev => [...prev, { ...event, timestamp: Date.now() }]);
-  };
-
-  const clearEvents = () => {
-    setEvents([]);
-  };
-
-  return {
-    events,
-    connected,
-    addEvent,
-    clearEvents,
-  };
-};
-
-export default useAgentEvents;
-```
-
-- [ ] **Step 2: Commit Phase 4 Task 6**
-
-```bash
-git add frontend/src/hooks/useAgentEvents.js
-git commit -m "feat(frontend): add useAgentEvents hook
-
-- Create hook for agent event management
-- Placeholder for future standalone agent SSE subscription
-- Provides addEvent and clearEvents helpers
-
-Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"
-```
-
----
-
 ## Final Integration
 
 ### Task 7: Final Integration and Testing
@@ -1241,9 +1230,6 @@ Phase 2:
 Phase 3:
 - Enhanced message bubble with action bar
 - Quick action chips in input area
-
-Phase 4:
-- useAgentEvents hook for future SSE integration
 
 All components styled and integrated into existing three-panel layout.
 
