@@ -92,7 +92,7 @@ class TestRetryDecorator:
 
         with pytest.raises(ConnectionError):
             only_value_error()
-        assert call_count == 3  # Should not retry since exception doesn't match
+        assert call_count == 1  # Should not retry since exception doesn't match
 
 
 class TestCachedDecorator:
