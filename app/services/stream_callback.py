@@ -52,7 +52,7 @@ class StreamCallbackHandler:
     ) -> None:
         """LLM 生成完成。"""
         # 计算成本 (DeepSeek 近似单价)
-        cost_per_token = 0.001 / 1000  # $0.001 per 1K tokens
+        cost_per_token = DEEPSEEK_PRICE_PER_1K_TOKENS / 1000
         cost_usd = total_tokens * cost_per_token
 
         await self._stream_manager.emit(
