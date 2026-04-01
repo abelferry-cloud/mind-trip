@@ -7,21 +7,22 @@
 ![LangChain](https://img.shields.io/badge/LangChain-0.1+-orange.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 
-**基于 LangChain 的智能出行规划 Multi-Agent 系统**</br>
-支持景点推荐、路线规划、预算控制、美食住宿推荐和用户偏好管理
+**懂你的智能旅行规划个人助理**</br>
+打造专属旅行智能体，记住你的偏好、预算与健康需求，量身定制完美行程
 
 </div>
 
 ---
 
-## ✨ 功能特性
+## ✨ 核心特色
 
-| 特性 | 说明 |
+| 特色 | 说明 |
 |------|------|
-| 🤖 **Multi-Agent 协作** | 4 个专业 Agent 协作生成完整行程（Supervisor + 3 Specialists） |
-| 🧠 **双层记忆系统** | 短期记忆（会话级）+ 长期记忆（Markdown，跨会话持久化） |
-| ❤️ **健康提醒** | 基于用户健康状况主动生成提醒（心脏病、糖尿病等） |
-| 💰 **预算控制** | Budget Agent 实时校验，超支自动触发路线调整（最多 2 轮） |
+| 🧑‍💼 **专属个人智能体** | 为每位用户打造专属旅行助手，越用越懂你 |
+| 🧠 **终身记忆系统** | 自动记住你的旅行偏好、健康状况、预算习惯，跨会话持久化 |
+| ❤️ **健康守护** | 智能识别心脏病、糖尿病等健康风险，主动贴心提醒 |
+| 💰 **预算精灵** | 实时监控花费，超支自动优化路线（最多 2 轮调整） |
+| 🤖 **Multi-Agent 协作** | 4 个专业 Agent 各司其职，协同生成完整行程 |
 | 🔄 **模型降级链** | DeepSeek → OpenAI → Claude → 本地模型，多层容错保证可用性 |
 | 📊 **可观测性** | 结构化日志 + Prometheus Metrics + 链路追踪 |
 
@@ -76,14 +77,14 @@ uvicorn app.main:app --reload --port 8000
 └─────────────────┘  └─────────────────┘  └─────────────────┘
 ```
 
-### 🏛️ 4-Agent 架构
+### 🏛️ 4-Agent 各司其职
 
-| Agent | 职责 | 特点 |
+| Agent | 职责 | 超能力 |
 |-------|------|------|
-| **PlanningAgent** | 主管协调，解析意图，编排执行流程 | 唯一入口，管理整个规划生命周期 |
-| **PreferenceAgent** | 解析并更新用户偏好到长期记忆 | 唯一可写入 Markdown 记忆的 Agent |
-| **BudgetAgent** | 预算计算、验证、超预算检测 | 支持重新规划触发 |
-| **TravelPlannerAgent** | 整合搜索+规划：景点、餐厅、酒店、路线 | 替代原有多个专项 Agent |
+| **PlanningAgent** | 主管协调 | 理解你的意图，统筹整个规划流程 |
+| **PreferenceAgent** | 偏好记忆 | 你的专属档案管理员，记住所有偏好 |
+| **BudgetAgent** | 预算守护 | 精打细算，超支时自动优化路线 |
+| **TravelPlannerAgent** | 行程规划 | 整合搜索与规划，打造专属路线 |
 
 ### 📁 项目结构
 
@@ -143,15 +144,15 @@ smartJournal/
 
 ---
 
-## 🔄 Agent 协作流程
+## 🔄 如何为你规划行程
 
-1. **PlanningAgent** 解析用户意图（目的地、天数、预算、偏好）
-2. **PreferenceAgent** 更新长期记忆（心脏病、硬座禁忌等）
-3. **并行调用**：TravelPlannerAgent（搜索景点/餐厅/酒店）+ BudgetAgent（计算预算）
-4. **TravelPlannerAgent** 生成每日路线
-5. **BudgetAgent** 校验是否超支 → 必要时触发重新规划（最多 2 轮）
-6. 生成健康提醒 + 偏好合规说明
-7. 整合输出完整行程方案
+1. **📝 理解你的需求** — PlanningAgent 解析目的地、天数、预算和特殊需求
+2. **🧠 调用你的画像** — PreferenceAgent 读取你过往的偏好与习惯（如：喜欢深度游、讨厌早起）
+3. **⚡ 并行智能规划** — TravelPlannerAgent 搜索景点/餐厅/酒店 + BudgetAgent 计算费用
+4. **🗺️ 专属路线生成** — 根据你的节奏和偏好，规划每日行程
+5. **💰 预算守护** — 实时校验花费，超支自动调整（最多 2 轮）
+6. **❤️ 健康护航** — 结合你的健康档案，生成贴心提醒
+7. **📤 交付完整方案** — 整合输出专属于你的旅行计划
 
 ---
 
@@ -200,15 +201,15 @@ curl -X POST http://localhost:8000/api/chat/stream \
 
 ## 🛠️ 技术栈
 
-| 层级 | 技术 |
-|------|------|
-| 🌐 Web 框架 | FastAPI + Uvicorn |
-| 🤖 Agent 框架 | LangChain |
-| 🧠 主模型 | DeepSeek Chat |
-| 🗃️ 短期记忆 | LangChain ConversationBuffer |
-| 📝 长期记忆 | Markdown 文件 (app/memory/) |
-| 📊 监控 | Prometheus + structlog |
-| 🎨 前端 | React + Vite + TypeScript |
+| 层级 | 技术 | 说明 |
+|------|------|------|
+| 🌐 Web 框架 | FastAPI + Uvicorn | 高性能异步 API |
+| 🤖 Agent 框架 | LangChain | Agent 编排与工具调用 |
+| 🧠 主模型 | DeepSeek Chat | 国产强力模型，支持长上下文 |
+| 🗃️ 短期记忆 | ConversationBuffer | 会话级上下文保持 |
+| 📝 长期记忆 | Markdown 文件 | 用户画像持久化存储 |
+| 📊 监控 | Prometheus + structlog | 生产级可观测性 |
+| 🎨 前端 | React + Vite + TypeScript | 现代响应式前端 |
 
 ---
 
