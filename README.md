@@ -62,7 +62,7 @@ uvicorn app.main:app --reload --port 8000
 
 ### 🏛️ 架构图
 
-![系统架构图](images/Architecture.png)
+![系统架构图](https://raw.githubusercontent.com/abelferry-cloud/mind-trip/master/images/Architecture.png)
 
 ### 🏛️ 4-Agent 架构
 
