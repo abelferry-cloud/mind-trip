@@ -62,7 +62,7 @@ uvicorn app.main:app --reload --port 8000
 
 ### 🏛️ 架构图
 
-![系统架构图](https://minimax-algeng-chat-tts.oss-cn-wulanchabu.aliyuncs.com/ccv2%2F2026-04-01%2FMiniMax-M2.7%2F1985476745603588972%2F18214a2567a9892033028725f6899dc4857988cc0382ee1f5aa1d4e0f20a48e2..png?Expires=1775103494&OSSAccessKeyId=LTAI5tGLnRTkBjLuYPjNcKQ8&Signature=LzFuzNYLI13s7CmRQ9mI59UWEiY%3D)
+![系统架构图](images/Architecture.png)
 
 ### 🏛️ 4-Agent 架构
 
