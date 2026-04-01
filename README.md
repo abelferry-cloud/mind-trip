@@ -91,32 +91,54 @@ uvicorn app.main:app --reload --port 8000
 smartJournal/
 ├── app/
 │   ├── agents/              # Agent 定义
-│   │   ├── supervisor.py   # PlanningAgent（总控）
+│   │   ├── supervisor.py    # PlanningAgent（总控）
 │   │   ├── preference.py    # PreferenceAgent（偏好管理）
 │   │   ├── budget.py        # BudgetAgent（预算计算）
 │   │   └── travel_planner.py # TravelPlannerAgent（整合版）
 │   ├── api/                 # FastAPI 路由
-│   │   ├── chat.py          # 聊天接口
-│   │   └── chat_stream.py   # 流式聊天（SSE）
-│   ├── services/
+│   │   └── chat.py          # 聊天接口
+│   ├── graph/               # Prompt 组装
+│   │   └── prompt/          # Prompt 组合器
+│   ├── memory/               # 记忆文件
+│   │   ├── MEMORY.md        # 精选长期记忆
+│   │   └── logs/            # 每日会话日志
+│   ├── middleware/           # 中间件
+│   ├── services/             # 服务层
 │   │   ├── memory/          # 记忆系统
-│   │   │   ├── short_term.py    # 短期记忆
-│   │   │   ├── session_manager.py # 会话管理
-│   │   │   ├── markdown_memory.py # 长期记忆
-│   │   │   └── memory_injector.py # 记忆注入
-│   │   └── model/           # 模型服务
-│   │       └── model_router.py   # 模型降级链
+│   │   │   ├── short_term.py      # 短期记忆
+│   │   │   ├── session_manager.py  # 会话管理
+│   │   │   ├── markdown_memory.py  # 长期记忆
+│   │   │   ├── memory_injector.py  # 记忆注入
+│   │   │   └── daily_log.py        # 每日日志
+│   │   ├── model/            # 模型服务
+│   │   │   └── model_router.py     # 模型降级链
+│   │   └── chat/            # 聊天服务
+│   │       └── chat_service.py     # 主聊天入口
+│   ├── session/             # 会话管理
+│   ├── skills/               # Agent Skills 定义
 │   ├── tools/               # 工具定义
 │   │   ├── travel_skills.py # 旅行工具（搜索+规划）
 │   │   └── budget_tools.py  # 预算工具
-│   └── graph/               # Prompt 组装
-│       └── prompt/          # Prompt 组合器
-├── front/                   # React 前端
+│   ├── workspace/           # Agent Prompt 模板
+│   │   ├── SOUL.md          # 核心人格和原则
+│   │   ├── IDENTITY.md      # Agent 身份模板
+│   │   ├── USER.md          # 用户上下文模板
+│   │   ├── AGENTS.md        # 多 Agent 协调规则
+│   │   ├── TOOLS.md         # 工具配置
+│   │   └── BOOTSTRAP.md     # 启动引导
+│   ├── config.py            # 配置管理
+│   └── main.py              # FastAPI 入口
+├── front/                   # React + Vite 前端
 ├── docs/                    # 设计文档
 │   └── superpowers/
 │       ├── specs/           # 设计规格
 │       └── plans/           # 实现计划
-└── tests/                   # 测试
+├── tests/                   # 测试
+├── .claude/                 # Claude Code 配置
+│   └── projects/            # 项目记忆
+├── CLAUDE.md                # Claude Code 指导文件
+├── guidence.md              # 项目指导文件
+└── requirements.txt         # Python 依赖
 ```
 
 ---
@@ -239,14 +261,6 @@ amap_api_key=
 - [ ] **连接真实 API**
   - [ ] 高德地图景点/路线集成
   - [ ] 真实餐厅、酒店搜索数据
-
-### 🌐 后端扩展
-
-- [ ] 连接真实旅行 API（高德地图、携程等）
-- [ ] 添加多语言支持
-- [ ] 支持团队出行规划
-- [ ] 添加行程分享功能
-- [ ] WebSocket 实时通信
 
 ---
 
