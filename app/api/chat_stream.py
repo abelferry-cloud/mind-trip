@@ -7,6 +7,7 @@ GET /api/chat/stream - EventSource 连接（用于前端接收事件）
 1. POST 时注册 session，启动后台任务处理 chat
 2. GET 用于 EventSource 连接，前端通过此接收事件流
 """
+import json
 from fastapi import APIRouter, BackgroundTasks, Query
 from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel
@@ -38,7 +39,14 @@ async def _create_sse_generator(session_id: str, queue: asyncio.Queue):
         while True:
             try:
                 event = await asyncio.wait_for(queue.get(), timeout=ping_interval)
-                yield event
+                # 将 SSEEvent 对象转换为 SSE 格式字符串
+                if hasattr(event, 'event') and hasattr(event, 'data'):
+                    # SSEEvent 对象
+                    data_str = json.dumps(event.data, ensure_ascii=False)
+                    yield f"event: {event.event}\ndata: {data_str}\n\n"
+                else:
+                    # 已经是字符串格式
+                    yield event
             except asyncio.TimeoutError:
                 # 发送心跳
                 yield f": ping\n\n"

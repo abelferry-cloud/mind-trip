@@ -27,8 +27,8 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
     # 模型链：逗号分隔，使用第一个可用的模型
-    model_chain: str = "openai,claude,local"
-    primary_model: str = "openai"
+    model_chain: str = "deepseek,openai,claude"
+    primary_model: str = "deepseek"
 
     # 超时设置
     tool_timeout: int = 10
